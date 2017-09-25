@@ -9,11 +9,99 @@ import sklearn.mixture as mixture, sklearn.utils.extmath as gmm_utils
 from theano.compile.nanguardmode import NanGuardMode
 from theano.compile.debugmode import DebugMode
 import time
+from numba import jit
+
+
+@jit
+def solve_lin_sys_for_gmm(Xvec, meansvec, covarsvec, weights,gmm_hm,gmm_hc,gmm_hw,reg_coef):
+
+    gm_num = len(weights)
+    n_dim = len(meansvec)/len(weights)
+    n_samples = len(Xvec)/n_dim
+    lam = n_samples
+    hm = gmm_hm(Xvec, meansvec, covarsvec, weights, lam)
+    hc = gmm_hc(Xvec, meansvec, covarsvec, weights, lam)
+    hw = gmm_hw(Xvec, meansvec, covarsvec, weights, lam)
+
+    mean_row = np.concatenate((hm[1], hm[2], hm[3], np.zeros((len(meansvec), 1))), axis=1)
+    cov_row = np.concatenate((hc[1], hc[2], hc[3], np.zeros((len(meansvec), 1))), axis=1)
+    weight_row = np.concatenate((hw[1], hw[2], hw[3], np.reshape(hw[4], (gm_num, 1))), axis=1)
+    lambda_row = np.concatenate(
+        (np.zeros((1, len(meansvec))),
+         np.zeros((1, len(meansvec))),
+         np.reshape(hw[4], (1, gm_num)),
+         np.zeros((1, 1))), axis=1)
+
+    M = np.concatenate((mean_row, cov_row, weight_row, lambda_row))
+    N = np.concatenate((-hm[0], -hc[0], -hw[0], np.zeros((1, hw[0].shape[1]))))
+
+
+    par_dim = gm_num * n_dim
+    a = np.diag(M[0:par_dim, 0:par_dim])
+    A = np.diag(a)
+    b = np.diag(M[0:par_dim, par_dim:2 * par_dim])
+    B = np.diag(b)
+    c = np.diag(M[par_dim:2 * par_dim, par_dim:2 * par_dim])
+    C = np.diag(c)
+
+    dX = []
+
+    s1 = 0
+    fs1 = 0
+
+    if (np.linalg.norm(A - M[0:par_dim, 0:par_dim]) < 1e-15 and
+        np.linalg.norm(B - M[0:par_dim, par_dim:2*par_dim]) < 1e-15 and
+        np.linalg.norm(C - M[par_dim:2*par_dim, par_dim:2 * par_dim]) < 1e-15):
+
+        D = M[2 * par_dim:, 2 * par_dim:]
+
+        if (np.linalg.matrix_rank(A) < A.shape[0]):
+            a = a + np.ones(a.shape[0])*reg_coef
+        if (np.linalg.matrix_rank(C) < C.shape[0]):
+            c = c + np.ones(a.shape[0]) * reg_coef
+        if (np.linalg.matrix_rank(D) < D.shape[0]):
+            D = D + np.eye(D.shape[0]) * reg_coef
+
+        Di = np.linalg.inv(D)
+        e = 1 / (a - b / c * b)
+        f = -e * b / c
+        h = (np.ones(a.shape[0]) - f * b) / c
+        s1 = time.time()
+
+        dX = np.zeros(N.shape)
+        n_samples = 10
+        for i in range(0, n_samples):
+            N1 = N[:, i * n_dim:(i + 1) * n_dim]
+            for gi in range(0, gm_num):
+                n_mu_gi = np.diag(N1[gi * n_dim:(gi + 1) * n_dim, 0:n_dim])
+                e_gi = e[gi * n_dim:(gi + 1) * n_dim]
+                n_cov_gi = np.diag(
+                    N1[n_dim * gm_num + gi * n_dim:n_dim * gm_num + (gi + 1) * n_dim, 0:n_dim])
+                f_gi = f[gi * n_dim:(gi + 1) * n_dim]
+                h_gi = h[gi * n_dim:(gi + 1) * n_dim]
+                dX[gi * n_dim: (gi + 1) * n_dim, i * n_dim:(i + 1) * n_dim] = np.diag(
+                    e_gi * n_mu_gi + f_gi * n_cov_gi)
+                dX[n_dim * gm_num + gi * n_dim: n_dim * gm_num + (gi + 1) * n_dim,
+                i * n_dim: (i + 1) * n_dim] = np.diag(f_gi * n_mu_gi + h_gi * n_cov_gi)
+
+        dX[n_dim * 2 * gm_num:, :] = Di.dot(N[n_dim * 2 * gm_num:, :])
+
+
+    else:
+
+        M = M + reg_coef * np.eye(M.shape[0])
+
+
+
+        dX = np.linalg.solve(M, N)
+    return dX
+
+
 
 class GaussLLHistModel:
 
-    def __init__(self, sample_num=10, gm_num = 2):
-        self.bin_num = 100
+    def __init__(self, sample_num=10, gm_num = 2,bin_num=10):
+        self.bin_num = bin_num
         self.sample_num = sample_num
         self.gm_num = gm_num
         self.hmin = 0.0
@@ -75,9 +163,10 @@ class GaussLLHistModel:
 
     def backward(self,X,Yp,Yn):
         pass_foward = False
-        if((X.shape == self.X.shape) and (Yp.shape==self.Yp.shape) and (Yn.shape == self.Yn.shape)):			
-            if((np.abs(X - self.X).sum() < 1e-3) and (np.abs(Yp==self.Yp).sum()<1e-3) and (np.abs(Yn == self.Yn).sum()<1e-3)):
-                pass_foward = True
+        if((not (self.X is None))and(not (self.Yp is None))and(not (self.Yp is None))):
+            if((X.shape == self.X.shape) and (Yp.shape==self.Yp.shape) and (Yn.shape == self.Yn.shape)):
+                if((np.abs(X - self.X).sum() < 1e-3) and (np.abs(Yp==self.Yp).sum()<1e-3) and (np.abs(Yn == self.Yn).sum()<1e-3)):
+                    pass_foward = True
         if(not pass_foward):
             self.forward(X,Yp,Yn)
         dYp,dYn,dX = self.calc_gmm_probs_dif(self.X,self.Yp,self.Yn,self.mean,self.cov,self.weights)
@@ -138,8 +227,6 @@ class GaussLLHistModel:
         dL = T.jacobian(L, [meansvec, covarsvec, weights, Yp, Yn])
         self.gmmhist_df = function([meansvec, covarsvec, weights, Yp, Yn], dL, allow_input_downcast=True)
         self.gmmhist_f = function([meansvec, covarsvec, weights, Yp, Yn], [L, hmax, hmin, hn, hp], allow_input_downcast=True)
-
-
 
     def solve_lin_sys_for_gmm(self, Xvec, meansvec, covarsvec, weights):
         s0 = time.time()
@@ -236,7 +323,7 @@ class GaussLLHistModel:
         # meansvec = np.reshape(means, np.prod(means.shape))
         # covarsvec = np.reshape(covars, np.prod(covars.shape))
 
-        dX = self.solve_lin_sys_for_gmm(Xvec, meansvec, covarsvec, weights)
+        dX = solve_lin_sys_for_gmm(Xvec, meansvec, covarsvec, weights,self.gmm_hm,self.gmm_hc,self.gmm_hw,self.reg_coef)
 
         df = self.gmmhist_df(meansvec, covarsvec, weights, Yp, Yn)
 
