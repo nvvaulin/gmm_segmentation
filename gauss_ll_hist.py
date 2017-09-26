@@ -9,149 +9,31 @@ import sklearn.mixture as mixture, sklearn.utils.extmath as gmm_utils
 from theano.compile.nanguardmode import NanGuardMode
 from theano.compile.debugmode import DebugMode
 import time
-from numba import jit
-
-
-@jit
-def solve_lin_sys_for_gmm(Xvec, meansvec, covarsvec, weights,gmm_hm,gmm_hc,gmm_hw,reg_coef):
-
-    gm_num = len(weights)
-    n_dim = len(meansvec)/len(weights)
-    n_samples = len(Xvec)/n_dim
-    lam = n_samples
-    hm = gmm_hm(Xvec, meansvec, covarsvec, weights, lam)
-    hc = gmm_hc(Xvec, meansvec, covarsvec, weights, lam)
-    hw = gmm_hw(Xvec, meansvec, covarsvec, weights, lam)
-
-    mean_row = np.concatenate((hm[1], hm[2], hm[3], np.zeros((len(meansvec), 1))), axis=1)
-    cov_row = np.concatenate((hc[1], hc[2], hc[3], np.zeros((len(meansvec), 1))), axis=1)
-    weight_row = np.concatenate((hw[1], hw[2], hw[3], np.reshape(hw[4], (gm_num, 1))), axis=1)
-    lambda_row = np.concatenate(
-        (np.zeros((1, len(meansvec))),
-         np.zeros((1, len(meansvec))),
-         np.reshape(hw[4], (1, gm_num)),
-         np.zeros((1, 1))), axis=1)
-
-    M = np.concatenate((mean_row, cov_row, weight_row, lambda_row))
-    N = np.concatenate((-hm[0], -hc[0], -hw[0], np.zeros((1, hw[0].shape[1]))))
-
-
-    par_dim = gm_num * n_dim
-    a = np.diag(M[0:par_dim, 0:par_dim])
-    A = np.diag(a)
-    b = np.diag(M[0:par_dim, par_dim:2 * par_dim])
-    B = np.diag(b)
-    c = np.diag(M[par_dim:2 * par_dim, par_dim:2 * par_dim])
-    C = np.diag(c)
-
-    dX = []
-
-    s1 = 0
-    fs1 = 0
-
-    if (np.linalg.norm(A - M[0:par_dim, 0:par_dim]) < 1e-15 and
-        np.linalg.norm(B - M[0:par_dim, par_dim:2*par_dim]) < 1e-15 and
-        np.linalg.norm(C - M[par_dim:2*par_dim, par_dim:2 * par_dim]) < 1e-15):
-
-        D = M[2 * par_dim:, 2 * par_dim:]
-
-        if (np.linalg.matrix_rank(A) < A.shape[0]):
-            a = a + np.ones(a.shape[0])*reg_coef
-        if (np.linalg.matrix_rank(C) < C.shape[0]):
-            c = c + np.ones(a.shape[0]) * reg_coef
-        if (np.linalg.matrix_rank(D) < D.shape[0]):
-            D = D + np.eye(D.shape[0]) * reg_coef
-
-        Di = np.linalg.inv(D)
-        e = 1 / (a - b / c * b)
-        f = -e * b / c
-        h = (np.ones(a.shape[0]) - f * b) / c
-        s1 = time.time()
-
-        dX = np.zeros(N.shape)
-        n_samples = 10
-        for i in range(0, n_samples):
-            N1 = N[:, i * n_dim:(i + 1) * n_dim]
-            for gi in range(0, gm_num):
-                n_mu_gi = np.diag(N1[gi * n_dim:(gi + 1) * n_dim, 0:n_dim])
-                e_gi = e[gi * n_dim:(gi + 1) * n_dim]
-                n_cov_gi = np.diag(
-                    N1[n_dim * gm_num + gi * n_dim:n_dim * gm_num + (gi + 1) * n_dim, 0:n_dim])
-                f_gi = f[gi * n_dim:(gi + 1) * n_dim]
-                h_gi = h[gi * n_dim:(gi + 1) * n_dim]
-                dX[gi * n_dim: (gi + 1) * n_dim, i * n_dim:(i + 1) * n_dim] = np.diag(
-                    e_gi * n_mu_gi + f_gi * n_cov_gi)
-                dX[n_dim * gm_num + gi * n_dim: n_dim * gm_num + (gi + 1) * n_dim,
-                i * n_dim: (i + 1) * n_dim] = np.diag(f_gi * n_mu_gi + h_gi * n_cov_gi)
-
-        dX[n_dim * 2 * gm_num:, :] = Di.dot(N[n_dim * 2 * gm_num:, :])
-
-
-    else:
-
-        M = M + reg_coef * np.eye(M.shape[0])
-
-
-
-        dX = np.linalg.solve(M, N)
-    return dX
-
-
 
 class GaussLLHistModel:
 
-    def __init__(self, sample_num=10, gm_num = 2,bin_num=10):
+
+    # def __init__(self):
+    #     pass
+
+
+    def __init__(self, sample_num=10, gm_num = 2,bin_num = 100):
         self.bin_num = bin_num
+        # self.binw = 200000.0/self.bin_num
         self.sample_num = sample_num
+        # self.hstart = -100000
         self.gm_num = gm_num
         self.hmin = 0.0
         self.hmax = 1.0
         self.min_cov = 1e-6
         self.reg_coef = 1e-5
-
-        Yvec = T.dvector('Y')
-        meansvec = T.dvector('means')
-        covarsvec = T.dvector('covars')
-        weights = T.dvector('weights')
-        lam = T.dscalar('lambda')
-        gm_num = weights.shape[0]
-        ndim = meansvec.shape[0] / gm_num
-        Y = T.reshape(Yvec, (Yvec.shape[0] / ndim, ndim))
-        means = T.reshape(meansvec, (gm_num, meansvec.shape[0] / gm_num))
-        covars = T.reshape(covarsvec, (gm_num, meansvec.shape[0] / gm_num))
-        LL, resps, LL_m = self.calc_ll_gmm(Y, means,covars,weights)
+        self.initialize_calc_ll_gmm_hist_fun()
         
-        LL_lag = T.sum(LL) + lam * (T.sum(weights) - 1)
-        
-        LLg = gradient.jacobian(LL_lag, [Yvec, meansvec, covarsvec, weights, lam])
-        llhm = gradient.jacobian(LLg[1], [Yvec, meansvec, covarsvec, weights])
-        llhc = gradient.jacobian(LLg[2], [Yvec, meansvec, covarsvec, weights])
-        llhw = gradient.jacobian(LLg[3], [Yvec, meansvec, covarsvec, weights, lam])
-        
-        self.gmm_hm = function([Yvec, meansvec, covarsvec, weights, lam], llhm, allow_input_downcast=True)
-        self.gmm_hc = function([Yvec, meansvec, covarsvec, weights, lam], llhc, allow_input_downcast=True)
-        self.gmm_hw = function([Yvec, meansvec, covarsvec, weights, lam], llhw, allow_input_downcast=True)
-
-        Yp = T.dmatrix('Yp')
-        Yn = T.dmatrix('Yn')
-        p_p,r_p,p_p_m = self.calc_ll_gmm(Yp, means, covars, weights)
-        p_n,r_n,p_n_m = self.calc_ll_gmm(Yn, means, covars, weights)
-
-        L, hmax, hmin, hn, hp = self.calc_hist_loss_vector(p_n, p_p)
-        dL = T.jacobian(L, [meansvec, covarsvec, weights, Yp, Yn])
-        self.gmmhist_df = function([meansvec, covarsvec, weights, Yp, Yn], dL, allow_input_downcast=True)
-        self.gmmhist_f = function([meansvec, covarsvec, weights, Yp, Yn], [L, hmax, hmin, hn, hp], allow_input_downcast=True)
-
-        self.X = None
-        self.Yp = None
-        self.Yn = None
-        self.mean = None
-        self.cov = None
-        self.weights = None
-
-
 
     def forward(self,X,Yp,Yn):
+        X = X.astype(np.float64)
+        Yp = Yp.astype(np.float64)
+        Yn = Yn.astype(np.float64)
         self.X = X.copy()
         self.Yp = Yp.copy()
         self.Yn = Yn.copy()
@@ -162,13 +44,10 @@ class GaussLLHistModel:
         return self.gmmhist_f(mean.flatten(),cov.flatten(),weights.flatten(),Yp,Yn)[0]
 
     def backward(self,X,Yp,Yn):
-        pass_foward = False
-        if((not (self.X is None))and(not (self.Yp is None))and(not (self.Yp is None))):
-            if((X.shape == self.X.shape) and (Yp.shape==self.Yp.shape) and (Yn.shape == self.Yn.shape)):
-                if((np.abs(X - self.X).sum() < 1e-3) and (np.abs(Yp==self.Yp).sum()<1e-3) and (np.abs(Yn == self.Yn).sum()<1e-3)):
-                    pass_foward = True
-        if(not pass_foward):
-            self.forward(X,Yp,Yn)
+        X = X.astype(np.float64)
+        Yp = Yp.astype(np.float64)
+        Yn = Yn.astype(np.float64)
+        self.forward(X,Yp,Yn)
         dYp,dYn,dX = self.calc_gmm_probs_dif(self.X,self.Yp,self.Yn,self.mean,self.cov,self.weights)
         return dX.reshape(self.X.shape),dYp,dYn
 
@@ -179,10 +58,14 @@ class GaussLLHistModel:
                       - 2 * T.dot(Y, (means / covars).T)
                       + T.dot(Y ** 2, T.transpose(1.0 / covars))) + T.log(weights))
         lpr = T.transpose(lpr, (1,0))
+        # Use the max to normalize, as with the log this is what accumulates
+        # the less errors
         vmax = T.max(lpr,axis=0)
         out = T.log(T.sum(T.exp(lpr- vmax), axis=0))
         out += vmax
+        # responsibilities = out
         responsibilities = T.exp(lpr - T.tile(out, (means.shape[0],1)))
+        # logprob = T.log(T.sum(T.exp(lpr), axis=1))
         return out, responsibilities, T.transpose(lpr)
 
 
@@ -194,12 +77,15 @@ class GaussLLHistModel:
                       + np.dot(Y ** 2, np.transpose(1.0 / covars))) + np.log(weights))
 
         lpr = np.transpose(lpr, (1,0))
+        # Use the max to normalize, as with the log this is what accumulates
+        # the less errors
         vmax = np.max(lpr,axis=0)
         out = np.log(np.sum(np.exp(lpr- vmax), axis=0))
         out += vmax
 
         responsibilities = np.exp(lpr - np.tile(out, (means.shape[0], 1)))
 
+        # logprob = T.log(T.sum(T.exp(lpr), axis=1))
         return out, responsibilities, np.transpose(lpr)
 
     def calc_ll_gmm_single(self, Y, means, covars, weights):
@@ -211,13 +97,66 @@ class GaussLLHistModel:
         logprob = T.log(T.sum(T.exp(lpr)))
         return logprob
 
+
+            # def calc_ll_gmm_single(self, y, means, covars, weights):
+    #     n_dim = y.shape[0]
+    #     lpr = (-0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)
+    #                    + T.sum((means ** 2) / covars, 1)
+    #                    - 2 * T.dot(y, (means / covars).T)
+    #                    + T.dot(y ** 2, T.transpose(1.0 / covars))) + T.log(weights))
+    #     logprob = T.log(T.sum(T.exp(lpr), axis=1))
+    #     return logprob
+
+
+
+            # scan_result, scan_updates = theano.scan(fn = lambda ind, A, means, covars, weights, Y: A+weights[ind]*self.calc_gauss_fun_theano(Y, means[ind, :], covars[ind, :]),
+        #             outputs_info=T.zeros_like(Y[:,0]),
+        #             sequences=T.arange(self.gm_num),
+        #             non_sequences=[means, covars, weights, Y])
+        #
+        # return T.log(scan_result[-1])
+
     def initialize_calc_ll_gmm_hist_fun(self):
+        Yvec = T.dvector('Y')
         meansvec = T.dvector('means')
         covarsvec = T.dvector('covars')
         weights = T.dvector('weights')
+        lam = T.dscalar('lambda')
         gm_num = weights.shape[0]
+        ndim = meansvec.shape[0] / gm_num
+        Y = T.reshape(Yvec, (Yvec.shape[0] / ndim, ndim))
         means = T.reshape(meansvec, (gm_num, meansvec.shape[0] / gm_num))
         covars = T.reshape(covarsvec, (gm_num, meansvec.shape[0] / gm_num))
+        LL, resps, LL_m = self.calc_ll_gmm(Y, means,
+                              covars,
+                              weights)
+        
+        LL_lag = T.sum(LL) + lam * (T.sum(weights) - 1)
+        LL_sum = T.sum(LL)
+        self.gmm_f = function([Yvec, meansvec, covarsvec, weights, lam], LL_lag)
+        
+        LLg = gradient.jacobian(LL_lag, [Yvec, meansvec, covarsvec, weights, lam])
+        
+        LL_sum_g = gradient.jacobian(LL_sum, [Yvec, meansvec, covarsvec, weights])
+        
+        LL_g = gradient.jacobian(LL, [Yvec, meansvec, covarsvec, weights])
+        
+        self.gmm_df = function([Yvec, meansvec, covarsvec, weights], LL_g, allow_input_downcast=True)
+        self.f = function([Yvec, meansvec, covarsvec, weights], LL, allow_input_downcast=True)
+        
+        
+        llhm = gradient.jacobian(LLg[1], [Yvec, meansvec, covarsvec, weights])
+        llhc = gradient.jacobian(LLg[2], [Yvec, meansvec, covarsvec, weights])
+        llhw = gradient.jacobian(LLg[3], [Yvec, meansvec, covarsvec, weights, lam])
+        
+        self.gmm_hm = function([Yvec, meansvec, covarsvec, weights, lam], llhm, allow_input_downcast=True)
+        self.gmm_hc = function([Yvec, meansvec, covarsvec, weights, lam], llhc, allow_input_downcast=True)
+        self.gmm_hw = function([Yvec, meansvec, covarsvec, weights, lam], llhw, allow_input_downcast=True)
+
+        Yvecp = T.dvector('Yp')
+        Yvecn = T.dvector('Yn')
+        Yp = T.reshape(Yvecp, (Yvecp.shape[0] / ndim, ndim))
+        Yn = T.reshape(Yvecn, (Yvecn.shape[0] / ndim, ndim))
         Yp = T.dmatrix('Yp')
         Yn = T.dmatrix('Yn')
         p_p,r_p,p_p_m = self.calc_ll_gmm(Yp, means, covars, weights)
@@ -228,7 +167,20 @@ class GaussLLHistModel:
         self.gmmhist_df = function([meansvec, covarsvec, weights, Yp, Yn], dL, allow_input_downcast=True)
         self.gmmhist_f = function([meansvec, covarsvec, weights, Yp, Yn], [L, hmax, hmin, hn, hp], allow_input_downcast=True)
 
+        p_p_1 = T.dvector('p_p_1')
+        p_n_1 = T.dvector('p_n_1')
+        Lh = self.calc_hist_loss_from_probs(p_p_1, p_n_1, hmin, hmax)
+        dLh = T.jacobian(Lh, [p_p_1, p_n_1])
+        self.df_hist = function([p_p_1, p_n_1, hmin, hmax], dLh)
+        
+        hmax1, hmin1 = self.calc_min_max(p_p_1, p_n_1)
+        hp1 = self.calc_hist_vals_triang(p_p_1, hmin1, hmax1)
+        hn1 = self.calc_hist_vals_triang(p_n_1, hmin1, hmax1)
+        self.hist_build = function([p_p_1, p_n_1], [hp1, hn1])
+
+
     def solve_lin_sys_for_gmm(self, Xvec, meansvec, covarsvec, weights):
+        # backup_path = '/media/hpc-4_Raid/avakhitov/'
         s0 = time.time()
 
         gm_num = len(weights)
@@ -252,6 +204,7 @@ class GaussLLHistModel:
         M = np.concatenate((mean_row, cov_row, weight_row, lambda_row))
         N = np.concatenate((-hm[0], -hc[0], -hw[0], np.zeros((1, hw[0].shape[1]))))
 
+        # M = M + self.reg_coef * np.eye(M.shape[0])
 
         par_dim = gm_num * n_dim
         a = np.diag(M[0:par_dim, 0:par_dim])
@@ -262,6 +215,9 @@ class GaussLLHistModel:
         C = np.diag(c)
 
         dX = []
+
+        # np.save('/home/avakhitov/M.npy', M)
+        # np.save('/home/avakhitov/N.npy', N)
 
         s1 = 0
         fs1 = 0
@@ -274,6 +230,8 @@ class GaussLLHistModel:
 
             if (np.linalg.matrix_rank(A) < A.shape[0]):
                 a = a + np.ones(a.shape[0])*self.reg_coef
+            # if (np.linalg.matrix_rank(B) < B.shape[0]):
+            #     b = b + np.ones(a.shape[0]) * self.reg_coef
             if (np.linalg.matrix_rank(C) < C.shape[0]):
                 c = c + np.ones(a.shape[0]) * self.reg_coef
             if (np.linalg.matrix_rank(D) < D.shape[0]):
@@ -282,8 +240,20 @@ class GaussLLHistModel:
             Di = np.linalg.inv(D)
             e = 1 / (a - b / c * b)
             f = -e * b / c
+            # print np.linalg.norm(e * b + f * c)
+            # print np.linalg.norm(e * a + f * b - np.ones(200))
             h = (np.ones(a.shape[0]) - f * b) / c
+            # print np.linalg.norm(f * b + h * c - np.ones(200))
+            # print np.linalg.norm(f * a + h * b)
+
+
+            # Z1 = np.zeros((par_dim, M.shape[0] - 2 * par_dim))
+            # R1 = np.concatenate([np.diag(e), np.diag(f), Z1], axis=1)
+            # R2 = np.concatenate([np.diag(f), np.diag(h), Z1], axis=1)
+            # R3 = np.concatenate([np.zeros((M.shape[0] - 2 * par_dim, 2 * par_dim)), np.linalg.inv(D)], axis=1)
+            # Mi = np.concatenate([R1, R2, R3], axis=0)
             s1 = time.time()
+            # dX = Mi.dot(N)
 
             dX = np.zeros(N.shape)
             n_samples = 10
@@ -304,8 +274,15 @@ class GaussLLHistModel:
             dX[n_dim * 2 * gm_num:, :] = Di.dot(N[n_dim * 2 * gm_num:, :])
 
             fs1 = time.time()
+            # if (len(np.nonzero(np.isnan(dX))[0]) > 0 or len(np.nonzero(np.isinf(dX))[0]) > 0):
+            #     np.save(backup_path +'Me.npy', M)
+            #     np.save(backup_path +'Ne.npy', N)
+            #     np.save(backup_path +'dX.npy', dX)
 
         else:
+
+            # np.save('/media/hpc-4_Raid/avakhitov/M.npy', M)
+            # np.save('/media/hpc-4_Raid/avakhitov/N.npy', N)
 
             M = M + self.reg_coef * np.eye(M.shape[0])
 
@@ -313,7 +290,12 @@ class GaussLLHistModel:
 
             dX = np.linalg.solve(M, N)
 
+            # f1 = time.time()
+
         f1 = time.time()
+        # linsys_times_fout = open('/home/avakhitov/timelog_solver.txt', 'a')
+        # linsys_times_fout.write('make ' + str(f0-s0)+' '+str(f1-f0) + ' ' + str(fs1-s1)+'\n')
+        # linsys_times_fout.flush()
 
         return dX
 
@@ -323,7 +305,7 @@ class GaussLLHistModel:
         # meansvec = np.reshape(means, np.prod(means.shape))
         # covarsvec = np.reshape(covars, np.prod(covars.shape))
 
-        dX = solve_lin_sys_for_gmm(Xvec, meansvec, covarsvec, weights,self.gmm_hm,self.gmm_hc,self.gmm_hw,self.reg_coef)
+        dX = self.solve_lin_sys_for_gmm(Xvec, meansvec, covarsvec, weights)
 
         df = self.gmmhist_df(meansvec, covarsvec, weights, Yp, Yn)
 
@@ -410,13 +392,13 @@ class GaussLLHistModel:
 
 
     def build_gmm(self, X, n_it = 1000, min_cov = 0.000001):
-        gmm = mixture.GaussianMixture(covariance_type='diag',
-                    n_components=self.gm_num, n_init=1, max_iter=n_it,
+        gmm = mixture.GMM(covariance_type='diag', init_params='wmc', min_covar=min_cov,
+                    n_components=self.gm_num, n_init=1, n_iter=n_it, params='wmc',
                     random_state=None)
         gmm.fit(X)
 
 
-        return np.copy(gmm.means_), np.copy(gmm.covariances_), np.copy(gmm.weights_), gmm.score(X)
+        return np.copy(gmm.means_), np.copy(gmm.covars_), np.copy(gmm.weights_), gmm.score(X)
 
     def build_adagmm(self, X, min_cov=0.000001):
         bics = []
@@ -425,11 +407,31 @@ class GaussLLHistModel:
             gmm = mixture.GMM(covariance_type='diag', init_params='wmc', min_covar=min_cov,
                         n_components=cnum, n_init=1, n_iter=1000, params='wmc',
                         random_state=None)
+            #print X.shape
             gmm.fit(X)
             bics.append(gmm.bic(X))
             scores.append(np.sum(gmm.score(X)))
 
+            # bics.append(gmm.aic(X))
+
+        # f_log = open('/home/avakhitov/ada_log.txt', 'a')
+        # score_log = open('/home/avakhitov/ada_score_log.txt', 'a')
+        # best_score_log = open('/home/avakhitov/ada_best_score_log.txt', 'a')
+        # for i in range(0, len(bics)):
+        #     f_log.write(str(bics[i]) + ' ')
+        #     score_log.write(str(scores[i]) + ' ')
+        # f_log.write('\n')
+        # score_log.write('\n')
+
+
         best_cnum = np.argmin(bics)+1
+        # best_cnum = 1
+        # for i in range(1, len(bics)):
+        #     if (bics[i] < bics[best_cnum-1] - 0.05*np.abs(bics[best_cnum-1])):
+        #         best_cnum = i+1
+        #
+        # best_score_log.write(str(best_cnum)+'\n')
+
 
         gmm = mixture.GMM(covariance_type='diag', init_params='wmc', min_covar=min_cov,
                           n_components=best_cnum, n_init=1, n_iter=1000, params='wmc',
@@ -467,6 +469,15 @@ class GaussLLHistModel:
         mean = T.mean(X, 0)
         Xc = X - T.tile(mean, (X.shape[0], 1))
         covs = T.sum(Xc ** 2, 0) / Xc.shape[0] + self.min_cov
+
+
+        # scan_result, scan_updates = theano.scan(fn=lambda ii, minval, covs : T.max([covs[ii], minval]),
+        #                                         outputs_info=None,
+        #                                         sequences=T.arange(covs.shape[0]),
+        #                                         non_sequences=[self.min_cov, covs])
+        #
+        # covs = scan_result
+
         return mean, covs
 
     def build_gauss_model_theano_batched(self, X):
