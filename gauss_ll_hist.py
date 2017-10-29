@@ -28,12 +28,13 @@ class GaussLLHistModel:
         self.min_cov = 1e-6
         self.reg_coef = 1e-5
         self.initialize_calc_ll_gmm_hist_fun()
+        self.X = None
         
 
     def forward(self,X,Yp,Yn):
-        X = X.astype(np.float64)
-        Yp = Yp.astype(np.float64)
-        Yn = Yn.astype(np.float64)
+        #X = X.astype(np.float64)
+        #Yp = Yp.astype(np.float64)
+        #Yn = Yn.astype(np.float64)
         self.X = X.copy()
         self.Yp = Yp.copy()
         self.Yn = Yn.copy()
@@ -44,12 +45,13 @@ class GaussLLHistModel:
         return self.gmmhist_f(mean.flatten(),cov.flatten(),weights.flatten(),Yp,Yn)[0]
 
     def backward(self,X,Yp,Yn):
-        X = X.astype(np.float64)
-        Yp = Yp.astype(np.float64)
-        Yn = Yn.astype(np.float64)
-        self.forward(X,Yp,Yn)
-        dYp,dYn,dX = self.calc_gmm_probs_dif(self.X,self.Yp,self.Yn,self.mean,self.cov,self.weights)
-        return dX.reshape(self.X.shape),dYp,dYn
+        #X = X.astype(np.float64)
+        #Yp = Yp.astype(np.float64)
+        #Yn = Yn.astype(np.float64)
+        if (self.X is None):
+            self.mean,self.cov,self.weights,score = self.build_gmm(X)
+        dYp,dYn,dX = self.calc_gmm_probs_dif(X,Yp,Yn,self.mean.flatten(),self.cov.flatten(),self.weights.flatten())
+        return dX.reshape(X.shape),dYp,dYn
 
     def calc_ll_gmm(self, Y, means, covars, weights):
         n_samples, n_dim = Y.shape
@@ -256,7 +258,7 @@ class GaussLLHistModel:
             # dX = Mi.dot(N)
 
             dX = np.zeros(N.shape)
-            n_samples = 10
+            #n_samples = 10
             for i in range(0, n_samples):
                 N1 = N[:, i * n_dim:(i + 1) * n_dim]
                 for gi in range(0, gm_num):
@@ -391,15 +393,17 @@ class GaussLLHistModel:
 
 
 
-    def build_gmm(self, X, n_it = 1000, min_cov = 0.000001):
-        gmm = mixture.GMM(covariance_type='diag', init_params='wmc', min_covar=min_cov,
-                    n_components=self.gm_num, n_init=1, n_iter=n_it, params='wmc',
-                    random_state=None)
+    def build_gmm(self, X, n_it = 1000, min_cov = 0.0001):
+#        gmm = mixture.GMM(covariance_type='diag', init_params='wmc', min_covar=min_cov,
+#                    n_components=self.gm_num, n_init=1, n_iter=n_it, params='wmc',
+#                    random_state=None)
+
+        gmm = mixture.GaussianMixture(covariance_type='diag',n_components=self.gm_num, max_iter=100)
         gmm.fit(X)
 
-
-        return np.copy(gmm.means_), np.copy(gmm.covars_), np.copy(gmm.weights_), gmm.score(X)
-
+        #return np.copy(gmm.means_), np.copy(gmm.covars_), np.copy(gmm.weights_), gmm.score(X)
+        return np.copy(gmm.means_), np.copy(gmm.covariances_)+self.min_cov, np.copy(gmm.weights_), gmm.score(X)
+    
     def build_adagmm(self, X, min_cov=0.000001):
         bics = []
         scores = []
