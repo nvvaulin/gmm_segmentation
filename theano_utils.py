@@ -11,18 +11,12 @@ def calc_log_prob_gauss_vector(Y,means,covars,weights = None):
     covars: matrix gm_num x n_dim
     weights: vector gm_num
     out: vector n_samples
-    """
+    """   
     n_samples, n_dim = Y.shape
-    if(weights is None):
-        lpr = (-0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)
-                      + T.sum((means ** 2) / covars, 1)
-                      - 2 * T.dot(Y, (means / covars).T)
-                      + T.dot(Y ** 2, T.transpose(1.0 / covars))))
-    else:
-        lpr = (-0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)
-                      + T.sum((means ** 2) / covars, 1)
-                      - 2 * T.dot(Y, (means / covars).T)
-                      + T.dot(Y ** 2, T.transpose(1.0 / covars))) + T.log(weights))
+    lpr = -0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)[None,:]
+                  + T.sum(T.square(means[None,:,:]-Y[:,None,:]) / covars[None,:,:], 2))
+    if not (weights is None):
+        lpr = lpr + T.log(weights)[None,:]
     lpr = T.transpose(lpr, (1,0))
     vmax = T.max(lpr,axis=0)
     out = T.log(T.sum(T.exp(lpr- vmax), axis=0))
