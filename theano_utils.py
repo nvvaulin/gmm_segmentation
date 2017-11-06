@@ -3,26 +3,6 @@ import theano.tensor as T
 from theano.ifelse import ifelse
 import numpy as np
 
-def calc_log_prob_gauss_vector(Y,means,covars,weights = None):
-    """
-    calc probability of gmm/gauss vector
-    Y: matrix n_samples x n_dim
-    means: martix gm_num x n_dim
-    covars: matrix gm_num x n_dim
-    weights: vector gm_num
-    out: vector n_samples
-    """   
-    n_samples, n_dim = Y.shape
-    lpr = -0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)[None,:]
-                  + T.sum(T.square(means[None,:,:]-Y[:,None,:]) / covars[None,:,:], 2))
-    if not (weights is None):
-        lpr = lpr + T.log(weights)[None,:]
-    lpr = T.transpose(lpr, (1,0))
-    vmax = T.max(lpr,axis=0)
-    out = T.log(T.sum(T.exp(lpr- vmax), axis=0))
-    out += vmax
-    return out
-
 def histogram_loss(p_n, p_p,min_cov,bin_num): 
     '''
     p_n -- negative values (theano vector)
@@ -81,6 +61,15 @@ def split(X,Y,size):
     n = X[(Y> 0.9).nonzero()][:size]
     return tr,p,n
     
+def classify(p,rate):
+    return T.switch(p > rate,T.ones_like(p),T.zeros_like(p))
+
+def accuracy(p,n,rate = None):
+    if(rate is None):
+        rate = 0.5*(T.min(p)+T.max(n))
+    t_p = classify(p,rate)    
+    t_n = 1.-classify(n,rate)    
+    return (t_p.sum()+t_n.sum())/(p.size+n.size),rate
     
 def center_loss(_X,_Y):
     """

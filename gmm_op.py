@@ -3,7 +3,64 @@ from theano import gradient,function
 import numpy as np
 import theano.tensor as T
 from sklearn import mixture
+from theano.gof import Variable
+from theano.gradient import grad
+from theano.gradient import format_as
 
+def jacobian(expression, wrt, consider_constant=None,
+             disconnected_inputs='raise'):
+    '''
+    similar implementation as in theano.gradient, but ignore not empty updates 
+    (because when you use it in lasagna there is should be some update and it is ok)
+    '''
+    from theano.tensor import arange
+    # Check inputs have the right format
+    assert isinstance(expression, Variable), \
+        "tensor.jacobian expects a Variable as `expression`"
+    assert expression.ndim < 2, \
+        ("tensor.jacobian expects a 1 dimensional variable as "
+         "`expression`. If not use flatten to make it a vector")
+
+    using_list = isinstance(wrt, list)
+    using_tuple = isinstance(wrt, tuple)
+
+    if isinstance(wrt, (list, tuple)):
+        wrt = list(wrt)
+    else:
+        wrt = [wrt]
+
+    if expression.ndim == 0:
+        # expression is just a scalar, use grad
+        return format_as(using_list, using_tuple,
+                         grad(expression,
+                              wrt,
+                              consider_constant=consider_constant,
+                              disconnected_inputs=disconnected_inputs))
+
+    def inner_function(*args):
+        idx = args[0]
+        expr = args[1]
+        rvals = []
+        for inp in args[2:]:
+            rval = grad(expr[idx],
+                        inp,
+                        consider_constant=consider_constant,
+                        disconnected_inputs=disconnected_inputs)
+            rvals.append(rval)
+        return rvals
+    # Computing the gradients does not affect the random seeds on any random
+    # generator used n expression (because during computing gradients we are
+    # just backtracking over old values. (rp Jan 2012 - if anyone has a
+    # counter example please show me)
+    jacobs, updates = theano.scan(inner_function,
+                                  sequences=arange(expression.shape[0]),
+                                  non_sequences=[expression] + wrt)
+#the only difference from theano implementation -- no assertion for updates
+#     assert not updates, \
+#         ("Scan has returned a list of updates. This should not "
+#          "happen! Report this to theano-users (also include the "
+#          "script that generated the error)")
+    return format_as(using_list, using_tuple, jacobs)
 
 def calc_log_prob_gauss_vector(Y,means,covars,weights = None):
     """
@@ -26,6 +83,9 @@ def calc_log_prob_gauss_vector(Y,means,covars,weights = None):
     return out
 
 class GMM(mixture.GaussianMixture):
+    '''
+    similar as scipy.mixture.GaussianMixture but if fit calls with the same X as in previous call, it uses previous parameters
+    '''
     def __init__(self,gm_num):
         super(GMM,self).__init__(covariance_type='diag',
                                            n_components=gm_num,
@@ -43,8 +103,9 @@ class GMM(mixture.GaussianMixture):
         return self
         
         
+   
 class GMMOp(theano.Op):
-    def __init__(self,gm_num,ndim,gmm=None):
+    def __init__(self,gm_num,ndim,gmm=None,use_approx_grad=False):
         """
         fit gmm with diagonal covariances to input vectors
         input: vector[n_samples*n_dim] flatten
@@ -60,6 +121,7 @@ class GMMOp(theano.Op):
         else:
             self.gmm = gmm
         self.reg_coef = 1e-15
+        self.use_approx_grad = use_approx_grad
 
     def perform(self, node, (X,), output_storage):       
         self.gmm.fit(X.reshape((-1,self.ndim)))
@@ -74,7 +136,7 @@ class GMMOp(theano.Op):
         covars = mcwl_vec[n_dim*gm_num:2*n_dim*gm_num].reshape((gm_num,n_dim))
         weights = mcwl_vec[2*n_dim*gm_num:2*n_dim*gm_num+gm_num].reshape((gm_num,))
         lam = mcwl_vec[-1]
-        return means,covars,weights,lam
+        return means,covars,weights,lam     
     
     @staticmethod
     def build_lagrangian(Y,means,covars,weights,lam):
@@ -84,9 +146,9 @@ class GMMOp(theano.Op):
     def build_linear_system(self,Yvec,mcwl_vec):
         means,covars,weights,lam = self.split_params(mcwl_vec)
         lagrangian = self.build_lagrangian(Yvec.reshape((-1,self.ndim)),means,covars,weights,lam)
-        d_mcwl = gradient.jacobian(lagrangian, [mcwl_vec],consider_constant=[Yvec,mcwl_vec])[0]
-        dmcwl_dY = gradient.jacobian(d_mcwl, [Yvec],consider_constant=[Yvec,mcwl_vec])[0]
-        d2mcwl = gradient.jacobian(d_mcwl, [mcwl_vec],consider_constant=[Yvec,mcwl_vec])[0]
+        d_mcwl = jacobian(lagrangian, [mcwl_vec],consider_constant=[Yvec,mcwl_vec])[0]
+        dmcwl_dY = jacobian(d_mcwl, [Yvec],consider_constant=[Yvec,mcwl_vec])[0]
+        d2mcwl = jacobian(d_mcwl, [mcwl_vec],consider_constant=[Yvec,mcwl_vec])[0]
         #d2mcwl grad(mcwl)^T = -dY_dmcwl
         return -dmcwl_dY,d2mcwl
     
@@ -147,26 +209,41 @@ class GMMOp(theano.Op):
                                  self.solve_diag_linear(N,a,b,c,D),\
                                  self.solve_general_linear(N,M))
     
-        
+    
+    def approx_grad(self,Xvec,mcw):
+        X = Xvec.reshape((-1,self.ndim))    
+        means,covars,weights,_ = self.split_params(mcw)
+        n_samples, n_dim = X.shape
+        log_prob = -0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)[None,:]\
+                      + T.sum(T.square(means[None,:,:]-X[:,None,:]) / covars[None,:,:], 2))\
+              + T.log(weights)[None,:]
+        w = T.nnet.softmax(log_prob)
+        s_w = T.sum(w,0)
+        w_means = T.sum(w[:,:,None]*X[:,None,:],0)/(s_w[:,None]+0.0001)
+        w_covars = T.sum(w[:,:,None]*((w_means[None,:,:]-X[:,None,:])**2),0)/(s_w[:,None]+0.0001)
+        w_mcw = T.concatenate((w_means.flatten(),w_covars.flatten(),weights))
+        return jacobian(w_mcw,[Xvec],consider_constant=[mcw,Xvec,w,s_w])[0]
+    
     
     def grad(self, (Yvec,), output_grads):
+        Yvec = gradient.disconnected_grad(Yvec)
         mcw_vec = GMMOp(self.gm_num,self.ndim,self.gmm)(Yvec)
-        lam = Yvec.shape[0]//self.ndim
-        mcwl_vec = T.concatenate((mcw_vec,lam.reshape((1,))))
-        N,M = self.build_linear_system(Yvec,mcwl_vec)
-        dX = self.solve_linear_system(N,M)
-        return [output_grads[0].dot(dX[0:dX.shape[0]-1, :])]
+        if(self.use_approx_grad):
+            return  [output_grads[0].dot(self.approx_grad(Yvec,mcw_vec))]
+        else:
+            lam = Yvec.shape[0]//self.ndim
+            mcwl_vec = T.concatenate((mcw_vec,lam.reshape((1,))))
+            N,M = self.build_linear_system(Yvec,mcwl_vec)
+            dX = self.solve_linear_system(N,M)
+            return [output_grads[0].dot(gradient.disconnected_grad(dX[0:dX.shape[0]-1, :]))]
 
-
-
-def get_gmm(X,gm_num):
+def get_gmm(X,gm_num,ndims,use_approx_grad=False):
     if(gm_num == 1):
         means = T.mean(X,0).reshape((1,-1))
         covars = (T.std(X,0)**2).reshape((1,-1))
         weights = T.ones(1)
-    else
-        ndims=X.shape[1]
-        f = GMMOp(gm_num,ndims)(X.flatten())
+    else:
+        f = GMMOp(gm_num,ndims,use_approx_grad=use_approx_grad)(X.flatten())
         means = f[:gm_num*ndims].reshape((gm_num,ndims))
         covars = f[gm_num*ndims:2*gm_num*ndims].reshape((gm_num,ndims))
         weights = f[2*gm_num*ndims:]
