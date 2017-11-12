@@ -62,7 +62,17 @@ def jacobian(expression, wrt, consider_constant=None,
 #          "script that generated the error)")
     return format_as(using_list, using_tuple, jacobs)
 
-def calc_log_prob_gauss_vector(Y,means,covars,weights = None):
+def calc_log_prob_gmm_componetwise(Y,means,covars,weights = None):
+    
+    n_samples, n_dim = Y.shape
+    lpr = -0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)[None,:]
+                  + T.sum(T.square(means[None,:,:]-Y[:,None,:]) / covars[None,:,:], 2))
+    if not (weights is None):
+        lpr = lpr + T.log(weights)[None,:]
+    return lpr
+
+
+def calc_log_prob_gmm(Y,means,covars,weights = None):
     """
     calc probability of gmm/gauss vector
     Y: matrix n_samples x n_dim
@@ -71,11 +81,7 @@ def calc_log_prob_gauss_vector(Y,means,covars,weights = None):
     weights: vector gm_num
     out: vector n_samples
     """   
-    n_samples, n_dim = Y.shape
-    lpr = -0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)[None,:]
-                  + T.sum(T.square(means[None,:,:]-Y[:,None,:]) / covars[None,:,:], 2))
-    if not (weights is None):
-        lpr = lpr + T.log(weights)[None,:]
+    lpr = calc_log_prob_gmm_componetwise(Y,means,covars,weights)
     lpr = T.transpose(lpr, (1,0))
     vmax = T.max(lpr,axis=0)
     out = T.log(T.sum(T.exp(lpr- vmax), axis=0))
@@ -140,7 +146,7 @@ class GMMOp(theano.Op):
     
     @staticmethod
     def build_lagrangian(Y,means,covars,weights,lam):
-        log_prob = calc_log_prob_gauss_vector(Y, means,covars,weights)        
+        log_prob = calc_log_prob_gmm(Y, means,covars,weights)        
         return T.sum(log_prob) + lam * (T.sum(weights) - np.float32(1.)) 
         
     def build_linear_system(self,Yvec,mcwl_vec):
@@ -213,10 +219,7 @@ class GMMOp(theano.Op):
     def approx_grad(self,Xvec,mcw):
         X = Xvec.reshape((-1,self.ndim))    
         means,covars,weights,_ = self.split_params(mcw)
-        n_samples, n_dim = X.shape
-        log_prob = -0.5 * (n_dim * T.log(2 * np.pi) + T.sum(T.log(covars), 1)[None,:]\
-                      + T.sum(T.square(means[None,:,:]-X[:,None,:]) / covars[None,:,:], 2))\
-              + T.log(weights)[None,:]
+        log_prob = calc_log_prob_gmm_componetwise(X,means,covars,weights)
         w = T.nnet.softmax(log_prob)
         s_w = T.sum(w,0)
         w_means = T.sum(w[:,:,None]*X[:,None,:],0)/(s_w[:,None]+0.0001)
