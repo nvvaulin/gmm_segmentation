@@ -50,16 +50,15 @@ def histogram_loss(p_n, p_p,min_cov,bin_num):
     return L, hmax, hmin, hn, hp
 
 
-def split(X,Y,size):
+def split(X,Y):
     """
     Y: vector mask, 0 -- positive
     size: size of output
     outputs: X[Y==0][:size],X[Y==0][size:2*size],X[Y==1][:size]
     """
-    tr = X[(Y<0.1).nonzero()][:size]
-    p = X[(Y<0.1).nonzero()][size:2*size]
-    n = X[(Y> 0.9).nonzero()][:size]
-    return tr,p,n
+    p = X[(Y<0.1).nonzero()]
+    n = X[(Y> 0.9).nonzero()]
+    return p,n
     
 def classify(p,rate):
     return T.switch(p > rate,T.ones_like(p),T.zeros_like(p))

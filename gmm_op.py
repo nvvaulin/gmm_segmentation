@@ -96,7 +96,7 @@ class GMM(mixture.GaussianMixture):
         super(GMM,self).__init__(covariance_type='diag',
                                            n_components=gm_num,
                                            max_iter=2000,
-                                           warm_start=True)
+                                           warm_start=False)
         self.X = None
         
     def fit(self,X):
