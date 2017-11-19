@@ -18,7 +18,33 @@ def nonl_name(nonl):
         return 'softmax'
     return str(nonl)
     
-def make_conv(data,num_filters,filter_size=1,nonl=rectify,no_bias=False,name='no_name'):
+def make_conv(data,num_filters,filter_size=1,nonl=rectify,no_bias=False,name='no_name',with_batchnorm=False):
+    if(with_batchnorm):
+        if(no_bias):
+            res = L.Conv2DLayer(data,filter_size=filter_size,num_filters=num_filters,
+                                nonlinearity=None,b=None,pad='same',
+                                name=name+'_conv(no_bias,'+str(filter_size)+')')
+        else:
+            res = L.Conv2DLayer(data,filter_size=filter_size,num_filters=num_filters,
+                                nonlinearity=None,pad='same',
+                                name=name+'_conv('+str(filter_size)+')')
+        res = L.BatchNormLayer(res,name=name+'_bn')
+        if not (nonl is None):
+            res = L.NonlinearityLayer(res,nonl,name=name+'_'+nonl_name(nonl))
+        return res
+    else:
+        if(no_bias):
+            res = L.Conv2DLayer(data,filter_size=filter_size,num_filters=num_filters,
+                                nonlinearity=nonl,b=None,pad='same',
+                                name=name+'_conv(no_bias,'+str(filter_size)+')_nonl')
+        else:
+            res = L.Conv2DLayer(data,filter_size=filter_size,num_filters=num_filters,
+                                nonlinearity=nonl,pad='same',
+                                name=name+'_conv('+str(filter_size)+')_nonl')
+        return res
+
+    
+def make_conv_1(data,num_filters,filter_size=1,nonl=rectify,no_bias=False,name='no_name'):
     if(no_bias):
         res = L.Conv2DLayer(data,filter_size=filter_size,num_filters=num_filters,
                             nonlinearity=None,b=None,pad='same',

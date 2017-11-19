@@ -10,20 +10,26 @@ class TieLoader:
         self.t_size = t_size
         self.cols = cols
         self.rows = rows
-        if(os.path.exists(path+'/list.txt')):
+        if(os.path.exists(path+'/list.txt') and os.path.exists(path+'/motion.txt')):
             self.img_list = [i[:-1] for i in open(path+'/list.txt')]
+            self.motion_list = [i[:-1] for i in open(path+'/motion.txt')]
         else:
-            self.img_list = self.list_files(path)
+            all_img = self.list_files(path)
+            self.img_list = [i for i in all_img if i[i.rfind('/'):].find('motion') < 0]
+            self.motion_list = [i for i in all_img if i[i.rfind('/'):].find('motion') >= 0]
             f = open(path+'/list.txt','w')
             for i in self.img_list:
                 f.write(i+'\n')
             f.close()
+            f = open(path+'/motion.txt','w')
+            for i in self. motion_list:
+                f.write(i+'\n')
+            f.close()
             
     def read_bg_for(self,path):
-        print path[:path.rfind('/')+1]+'motion_input.jpg'
         im = cv2.imread(path[:path.rfind('/')+1]+'motion_input.jpg')
         if(im is None):
-            return None
+            im = cv2.imread(self.motion_list[np.random.randint(len(self.motion_list))]+'_input.jpg')
         cols = im.shape[1]//self.t_size
         rows = im.shape[0]//self.t_size
         h,w = self.t_size,self.t_size
@@ -42,7 +48,7 @@ class TieLoader:
             if(os.path.isdir(path+'/'+i)):
                 res = res+ self.list_files(path+'/'+i)
             elif(i[-3:] == 'jpg'):
-                return [path+'/'+str(j) for j in [ int(k[:k.rfind('_')]) for k in os.listdir(path) if k.find('motion') < 0]]
+                return [path+'/'+j[:j.rfind('_')] for j in os.listdir(path)]
         return res
     
     def load_random(self):
@@ -107,29 +113,25 @@ class GMMDataLoader():
     def load_random(self):
         while(1):
             X,y,data =self.load_from_dl()
-            ii = np.random.randint(len(data))
             means = y.mean((1,2))
             inx = means.argsort()
             if(means[inx[0]] < 0.1) and (y[(y>0.1)&(y<0.9)].size < 0.1*y.size):
-                break
-        if(means.mean() < self.min_r):
-            if(data is None):
-                continue
-            for i in range(len(inx)//2):
-                X[inx[i]] = data[ii][:,:self.tile_size[1],:self.tile_size[0]]
-                ii = (ii+1) % len(data)
-                y[inx[i]] = 1.
-                if((means[inx[i:]].sum()+i+1)/len(means) > self.min_r):
-                    break
-        elif(means.mean() > self.max_r):
-            for i in range(1,len(inx)//2):
-                X[inx[-i]] = X[inx[0]]
-                y[inx[-i]] = y[inx[0]]
-                if((means[inx[:-i]].sum()+means[inx[0]]*i)/len(means) < self.max_r):
-                    break
-        means = y.mean((1,2))
-        inx = means.argsort()
-        return X,y
+                if(means.mean() < self.min_r):
+                    if(data is None):
+                        continue
+                    ii = np.random.randint(len(data))
+                    for i in range(len(inx)//2):
+                        X[inx[i]] = data[ii][:,:self.tile_size[1],:self.tile_size[0]]
+                        ii = (ii+1) % len(data)
+                        y[inx[i]] = 1.
+                        if((means[inx[i:]].sum()+i+1)/len(means) > self.min_r):
+                            return X,y
+                elif(means.mean() > self.max_r):
+                    for i in range(1,len(inx)//2):
+                        X[inx[-i]] = X[inx[0]]
+                        y[inx[-i]] = y[inx[0]]
+                        if((means[inx[:-i]].sum()+means[inx[0]]*i)/len(means) < self.max_r):
+                            return X,y
     
 
 def draw_sample(X,y,cols=10,rows=10):
@@ -144,6 +146,3 @@ def draw_sample(X,y,cols=10,rows=10):
     plt.figure(figsize=(10,10))
     plt.imshow(np.concatenate((res.astype(np.uint8),(mask*255).astype(np.uint8)),axis=1))
     plt.show()
-
-
-    
