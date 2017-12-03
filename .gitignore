@@ -1,4 +1,10 @@
 *
+!gmm_bg_substructor/
 !.gitignore
 !*.py
 !*.ipynb
+!*.cpp
+!*.hpp
+!*.h
+!*.pyx
+
