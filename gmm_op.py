@@ -92,8 +92,8 @@ class GMM(mixture.GaussianMixture):
     '''
     similar as scipy.mixture.GaussianMixture but if fit calls with the same X as in previous call, it uses previous parameters
     '''
-    def __init__(self,gm_num):
-        super(GMM,self).__init__(covariance_type='diag',
+    def __init__(self,gm_num,covariance_type):
+        super(GMM,self).__init__(covariance_type=covariance_type,
                                            n_components=gm_num,
                                            max_iter=2000,
                                            warm_start=False)
@@ -111,7 +111,7 @@ class GMM(mixture.GaussianMixture):
         
    
 class GMMOp(theano.Op):
-    def __init__(self,gm_num,ndim,gmm=None,use_approx_grad=False):
+    def __init__(self,gm_num,ndim,gmm=None,use_approx_grad=False,covariance_type='diag'):
         """
         fit gmm with diagonal covariances to input vectors
         input: vector[n_samples*n_dim] flatten
@@ -123,7 +123,7 @@ class GMMOp(theano.Op):
         self.gm_num = gm_num
         self.ndim = ndim
         if(gmm is None):
-            self.gmm =GMM(self.gm_num)
+            self.gmm =GMM(self.gm_num,covariance_type)
         else:
             self.gmm = gmm
         self.reg_coef = 1e-15
@@ -132,7 +132,10 @@ class GMMOp(theano.Op):
     def perform(self, node, (X,), output_storage):       
         self.gmm.fit(X.reshape((-1,self.ndim)))
         means = self.gmm.means_.flatten()
-        covars = self.gmm.covariances_.flatten()
+        if(len(self.gmm.covariances_.shape)==1):
+            covars = (self.gmm.means_*0+self.gmm.covariances_[:,None]).flatten()
+        else:
+            covars = self.gmm.covariances_.flatten()
         weights = self.gmm.weights_.flatten()
         output_storage[0][0] = np.concatenate((means,covars,weights)).astype(np.float32)
             
@@ -240,14 +243,16 @@ class GMMOp(theano.Op):
             dX = self.solve_linear_system(N,M)
             return [output_grads[0].dot(gradient.disconnected_grad(dX[0:dX.shape[0]-1, :]))]
 
-def get_gmm(X,gm_num,ndims,use_approx_grad=False):
+def get_gmm(X,gm_num,ndims,use_approx_grad=False,covariance_type='diag'):
     if(gm_num == 1):
         means = T.mean(X,0).reshape((1,-1))
         covars = (T.std(X,0)**2).reshape((1,-1))
         weights = T.ones(1)
     else:
-        f = GMMOp(gm_num,ndims,use_approx_grad=use_approx_grad)(X.flatten())
+        f = GMMOp(gm_num,ndims,use_approx_grad=use_approx_grad,covariance_type=covariance_type)(X.flatten())
         means = f[:gm_num*ndims].reshape((gm_num,ndims))
         covars = f[gm_num*ndims:2*gm_num*ndims].reshape((gm_num,ndims))
         weights = f[2*gm_num*ndims:]
+    if(covariance_type == 'spherical'):
+        covars = means*0+T.mean(covars,1)[:,None]
     return means,covars,weights

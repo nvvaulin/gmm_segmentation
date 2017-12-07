@@ -68,7 +68,7 @@ def make_deconv(data,num_filters,filter_size=2,nonl=rectify,name='no_name',with_
 
     
     
-def gen_unet(data,num_filters,deep,name='unet',first=True):    
+def gen_unet(data,num_filters,deep,name='unet',first=True,out_ndim=None):    
     name = name+str(deep)
     res1 = make_conv(data,num_filters,3,name=name+'_in',with_batchnorm=True)   
     
@@ -80,23 +80,21 @@ def gen_unet(data,num_filters,deep,name='unet',first=True):
     res2 = make_deconv(res2,num_filters*((2**(deep-1))-1),name=name,with_batchnorm=True)
     res = L.ConcatLayer([res2,res1],axis=1, cropping=(None, None, "center", "center"),name=name+'_concat')
     if(first ):
-        res = L.Conv2DLayer(res,num_filters*(2**(deep-1)),3,nonlinearity=None,name=name+'_conv',pad='same')
+        res = L.Conv2DLayer(res,out_ndim,3,nonlinearity=None,name=name+'_conv',pad='same')
     else:
         res = make_conv(res,num_filters*(2**(deep-1)),3,name=name+'_out',with_batchnorm=True)   
     return res
 
 
-def make_net(input_tensor,ndim=None):
+def make_net(input_tensor,ndim,use_score=False):
     data_l = L.InputLayer((None,3,None,None)
                            ,input_tensor
                            ,name='data')
-    unet = gen_unet(data_l,6,3,name='unet')
-    if(ndim is None):
-        fetures = unet
-    else:
-        fetures = L.Conv2DLayer(unet,ndim,(1,1),pad='same',name='features')
-    general_dist = make_conv(unet,12,name='general_dist_hid')
+    features = gen_unet(data_l,6,3,name='unet',out_ndim=ndim)
+    if(not use_score):
+        return features
+    general_dist = make_conv(features,12,name='general_dist_hid')
     general_dist = L.Conv2DLayer(general_dist,1,(1,1),pad='same',name='general_dist')
-    net = L.concat([general_dist,fetures])
+    net = L.concat([general_dist,features])
     return net
     
