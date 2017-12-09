@@ -1,0 +1,63 @@
+results/no_params/badWeather/blizzard
+AveragePrecision: 0.568661986628
+FNR: 0.320639
+Recall: 0.679361
+Sp: 0.977651
+Precision: 0.577847
+PWC: 3.52017666452
+FPR: 0.0223487
+F_Measure: 0.624505911656
+results/no_params/baseline/highway
+AveragePrecision: 0.82223959343
+FNR: 0.18541
+Recall: 0.81459
+Sp: 0.98474
+Precision: 0.661728
+PWC: 2.12753794862
+FPR: 0.0152603
+F_Measure: 0.730245199699
+results/no_params/cameraJitter/badminton
+AveragePrecision: 0.865726946802
+FNR: 0.0459641
+Recall: 0.954036
+Sp: 0.978114
+Precision: 0.685185
+PWC: 2.3031409796
+FPR: 0.0218864
+F_Measure: 0.797563268771
+results/no_params/dynamicBackground/boats
+AveragePrecision: 0.924244715351
+FNR: 0.0124611
+Recall: 0.987539
+Sp: 0.962217
+Precision: 0.468242
+PWC: 3.69581568683
+FPR: 0.0377835
+F_Measure: 0.635270538245
+results/no_params/shadow/backdoor
+AveragePrecision: 0.795190602032
+FNR: 0.0909091
+Recall: 0.909091
+Sp: 0.969268
+Precision: 0.54
+PWC: 3.30291792879
+FPR: 0.0307322
+F_Measure: 0.677540802332
+results/no_params/thermal/corridor
+AveragePrecision: 0.588028941022
+FNR: 1.0
+Recall: 0.0
+Sp: 1.0
+Precision: nan
+PWC: 17.6059014338
+FPR: 0.0
+F_Measure: nan
+total result
+AveragePrecision: 0.760682130878
+FNR: 0.275897
+Recall: 0.724103
+Sp: 0.978665
+Precision: nan
+PWC: 5.42591510703
+FPR: 0.0213352
+F_Measure: nan

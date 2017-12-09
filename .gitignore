@@ -1,5 +1,7 @@
 *
 !gmm_bg_substructor/
+!results/
+!results/*.txt
 !.gitignore
 !*.py
 !*.ipynb

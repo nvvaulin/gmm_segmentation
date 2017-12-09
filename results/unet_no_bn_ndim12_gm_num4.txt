@@ -1,0 +1,63 @@
+results/conv_net_no_bn_ndim12_gm_num4_with_bn_/badWeather/blizzard
+AveragePrecision: 0.755071655427
+FNR: 0.211823
+Recall: 0.788177
+Sp: 0.985071
+Precision: 0.703297
+PWC: 2.33885896702
+FPR: 0.0149286
+F_Measure: 0.743321716143
+results/conv_net_no_bn_ndim12_gm_num4_with_bn_/baseline/highway
+AveragePrecision: 0.778023391136
+FNR: 0.149002
+Recall: 0.850998
+Sp: 0.984944
+Precision: 0.671515
+PWC: 1.97309090051
+FPR: 0.0150556
+F_Measure: 0.750677515267
+results/conv_net_no_bn_ndim12_gm_num4_with_bn_/cameraJitter/badminton
+AveragePrecision: 0.779102416784
+FNR: 0.170129
+Recall: 0.829871
+Sp: 0.979888
+Precision: 0.701505
+PWC: 2.81953765126
+FPR: 0.0201116
+F_Measure: 0.760308134169
+results/conv_net_no_bn_ndim12_gm_num4_with_bn_/dynamicBackground/boats
+AveragePrecision: 0.855408692523
+FNR: 0.18123
+Recall: 0.81877
+Sp: 0.99476
+Precision: 0.834984
+PWC: 1.07603667674
+FPR: 0.00524001
+F_Measure: 0.826797401662
+results/conv_net_no_bn_ndim12_gm_num4_with_bn_/shadow/backdoor
+AveragePrecision: 0.786612053117
+FNR: 0.0
+Recall: 1.0
+Sp: 0.963614
+Precision: 0.547044
+PWC: 3.48540878036
+FPR: 0.0363857
+F_Measure: 0.707212079448
+results/conv_net_no_bn_ndim12_gm_num4_with_bn_/thermal/corridor
+AveragePrecision: 0.797312475119
+FNR: 0.335979
+Recall: 0.664021
+Sp: 0.97509
+Precision: 0.858283
+PWC: 8.24988338061
+FPR: 0.0249098
+F_Measure: 0.748757028573
+total result
+AveragePrecision: 0.791921780684
+FNR: 0.174694
+Recall: 0.825306
+Sp: 0.980561
+Precision: 0.719438
+PWC: 3.32380272608
+FPR: 0.0194386
+F_Measure: 0.75617897921
