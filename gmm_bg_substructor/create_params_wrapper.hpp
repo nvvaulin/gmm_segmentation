@@ -2,6 +2,7 @@
 #define _CREATE_PARAMS_WRAPPER_HPP_
 
 #include "GrimsonGMM.hpp"
+#include "FTSG.hpp"
 #include "Image.hpp"
 #include <cv.h>
 #include <cxcore.h>
@@ -50,4 +51,17 @@ GrimsonParams CreateGrimsonGMMParams(int width, int height,
 	params.MinVariance() = min_variance;
 	return params;
 }
+
+
+FTSGParams CreateFTSGParams(int width, int height,
+				float th, int nDs, int nDt, int nAs, int nAt,
+				float bgAlpha, float fgAlpha, float tb, float tf, float tl)
+{
+	Algorithms::BackgroundSubtraction::FTSGParams params;
+	params.SetFrameSize(width, height);
+	params.SetFLUXParams(th, nDs, nDt, nAs, nAt);
+	params.SetGMMPatams(bgAlpha, fgAlpha, tb, tf, tl);
+	return params;
+}
+
 #endif

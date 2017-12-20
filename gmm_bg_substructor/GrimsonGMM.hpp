@@ -134,15 +134,13 @@ public:
 	void Initalize(const BgsParams& param);
 
 	void InitModel(const Image& data);
-	void Subtract(int frame_num, const Image& data,  
-									BwImage& low_threshold_mask, BwImage& high_threshold_mask);	
+	void Subtract(int frame_num, const Image& data, const Image& image, BwImage& low_threshold_mask, BwImage& high_threshold_mask);	
 	void Update(int frame_num, const Image& data,  const BwImage& update_mask);
 
 	Image* Background();
 
 private:	
-	void SubtractPixel(long posPixel, const Pixel& pixel, unsigned char& numModes, 
-											unsigned char& lowThreshold, unsigned char& highThreshold);
+	void SubtractPixel(long posPixel, const Pixel& pixel, unsigned char& numModes, unsigned char& lowThreshold, unsigned char& highThreshold);
 
 	// User adjustable parameters
 	GrimsonParams m_params;

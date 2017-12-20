@@ -101,8 +101,7 @@ void GrimsonGMM::Update(int frame_num, const Image& data,  const BwImage& update
 	// it doesn't make sense to have conditional updates in the GMM framework
 }
 
-void GrimsonGMM::SubtractPixel(long posPixel, const Pixel& pixel, unsigned char& numModes, 
-																	unsigned char& low_threshold, unsigned char& high_threshold)
+void GrimsonGMM::SubtractPixel(long posPixel, const Pixel& pixel, unsigned char& numModes, unsigned char& low_threshold, unsigned char& high_threshold)
 {
 	// calculate distances to the modes (+ sort???)
 	// here we need to go in descending order!!!
@@ -291,8 +290,7 @@ void GrimsonGMM::SubtractPixel(long posPixel, const Pixel& pixel, unsigned char&
 //					(the memory should already be reserved) 
 //					values: 255-foreground, 125-shadow, 0-background
 ///////////////////////////////////////////////////////////////////////////////
-void GrimsonGMM::Subtract(int frame_num, const Image& data,  
-														BwImage& low_threshold_mask, BwImage& high_threshold_mask)
+void GrimsonGMM::Subtract(int frame_num, const Image& data, const Image& image, BwImage& low_threshold_mask, BwImage& high_threshold_mask)
 {
 	unsigned char low_threshold, high_threshold;
 	long posPixel;

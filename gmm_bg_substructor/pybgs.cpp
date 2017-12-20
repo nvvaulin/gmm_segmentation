@@ -6,18 +6,35 @@
         "depends": [
             "Bgs.hpp", 
             "BgsParams.hpp", 
+            "FTSG.hpp", 
             "GrimsonGMM.hpp", 
             "Image.hpp", 
             "create_params_wrapper.hpp"
         ], 
+        "extra_compile_args": [
+            "-std=c++14"
+        ], 
         "language": "c++", 
         "libraries": [
             "opencv_core", 
-            "opencv_highgui"
+            "opencv_highgui", 
+            "opencv_features2d", 
+            "opencv_imgproc", 
+            "opencv_photo", 
+            "opencv_superres", 
+            "opencv_ts"
         ], 
         "sources": [
+            "FTSGAlgorithm.cpp", 
+            "tools.cpp", 
+            "FluxTensorMethod.cpp", 
+            "BackgroundGaussian.cpp", 
+            "ForegroundGaussian.cpp", 
+            "Pixel.cpp", 
+            "SplitGaussian.cpp", 
             "Image.cpp", 
-            "GrimsonGMM.cpp"
+            "GrimsonGMM.cpp", 
+            "FTSG.cpp"
         ]
     }, 
     "module_name": "pybgs"
@@ -478,6 +495,7 @@ static CYTHON_INLINE float __PYX_NAN() {
 #include "Bgs.hpp"
 #include "BgsParams.hpp"
 #include "GrimsonGMM.hpp"
+#include "FTSG.hpp"
 #include "create_params_wrapper.hpp"
 #include "pythread.h"
 #include "pystate.h"
@@ -1055,7 +1073,7 @@ typedef npy_clongdouble __pyx_t_5numpy_clongdouble_t;
  */
 typedef npy_cdouble __pyx_t_5numpy_complex_t;
 
-/* "pybgs.pyx":84
+/* "pybgs.pyx":96
  * 
  * 
  * cdef class BackgroundSubtraction:             # <<<<<<<<<<<<<<
@@ -1066,9 +1084,11 @@ struct __pyx_obj_5pybgs_BackgroundSubtraction {
   PyObject_HEAD
   Algorithms::BackgroundSubtraction::Bgs *bg;
   IplImage *iplimage;
+  IplImage *ipldata;
   IplImage *low_mask_iplimage;
   IplImage *high_mask_iplimage;
   Image image;
+  Image data;
   BwImage low_mask_image;
   BwImage high_mask_image;
 };
@@ -1278,6 +1298,22 @@ static int __Pyx_ParseOptionalKeywords(PyObject *kwds, PyObject **argnames[],\
     PyObject *kwds2, PyObject *values[], Py_ssize_t num_pos_args,\
     const char* function_name);
 
+/* IncludeStringH.proto */
+#include <string.h>
+
+/* BytesEquals.proto */
+static CYTHON_INLINE int __Pyx_PyBytes_Equals(PyObject* s1, PyObject* s2, int equals);
+
+/* UnicodeEquals.proto */
+static CYTHON_INLINE int __Pyx_PyUnicode_Equals(PyObject* s1, PyObject* s2, int equals);
+
+/* StrEquals.proto */
+#if PY_MAJOR_VERSION >= 3
+#define __Pyx_PyString_Equals __Pyx_PyUnicode_Equals
+#else
+#define __Pyx_PyString_Equals __Pyx_PyBytes_Equals
+#endif
+
 /* BufferIndexError.proto */
 static void __Pyx_RaiseBufferIndexError(int axis);
 
@@ -1432,22 +1468,6 @@ static int __Pyx_GetException(PyObject **type, PyObject **value, PyObject **tb);
 /* ArgTypeTest.proto */
 static CYTHON_INLINE int __Pyx_ArgTypeTest(PyObject *obj, PyTypeObject *type, int none_allowed,
     const char *name, int exact);
-
-/* IncludeStringH.proto */
-#include <string.h>
-
-/* BytesEquals.proto */
-static CYTHON_INLINE int __Pyx_PyBytes_Equals(PyObject* s1, PyObject* s2, int equals);
-
-/* UnicodeEquals.proto */
-static CYTHON_INLINE int __Pyx_PyUnicode_Equals(PyObject* s1, PyObject* s2, int equals);
-
-/* StrEquals.proto */
-#if PY_MAJOR_VERSION >= 3
-#define __Pyx_PyString_Equals __Pyx_PyUnicode_Equals
-#else
-#define __Pyx_PyString_Equals __Pyx_PyBytes_Equals
-#endif
 
 /* None.proto */
 static CYTHON_INLINE Py_ssize_t __Pyx_div_Py_ssize_t(Py_ssize_t, Py_ssize_t);
@@ -1976,9 +1996,19 @@ static const char __pyx_k_O[] = "O";
 static const char __pyx_k_c[] = "c";
 static const char __pyx_k_id[] = "id";
 static const char __pyx_k_np[] = "np";
+static const char __pyx_k_tb[] = "tb";
+static const char __pyx_k_tf[] = "tf";
+static const char __pyx_k_th[] = "th";
+static const char __pyx_k_tl[] = "tl";
 static const char __pyx_k_low[] = "low";
+static const char __pyx_k_nAs[] = "nAs";
+static const char __pyx_k_nAt[] = "nAt";
+static const char __pyx_k_nDs[] = "nDs";
+static const char __pyx_k_nDt[] = "nDt";
 static const char __pyx_k_obj[] = "obj";
+static const char __pyx_k_FTSG[] = "FTSG";
 static const char __pyx_k_base[] = "base";
+static const char __pyx_k_data[] = "data";
 static const char __pyx_k_high[] = "high";
 static const char __pyx_k_main[] = "__main__";
 static const char __pyx_k_mode[] = "mode";
@@ -2006,6 +2036,8 @@ static const char __pyx_k_name_2[] = "__name__";
 static const char __pyx_k_params[] = "params";
 static const char __pyx_k_struct[] = "struct";
 static const char __pyx_k_unpack[] = "unpack";
+static const char __pyx_k_bgAlpha[] = "bgAlpha";
+static const char __pyx_k_fgAlpha[] = "fgAlpha";
 static const char __pyx_k_fortran[] = "fortran";
 static const char __pyx_k_memview[] = "memview";
 static const char __pyx_k_Ellipsis[] = "Ellipsis";
@@ -2013,6 +2045,7 @@ static const char __pyx_k_channels[] = "channels";
 static const char __pyx_k_itemsize[] = "itemsize";
 static const char __pyx_k_variance[] = "variance";
 static const char __pyx_k_TypeError[] = "TypeError";
+static const char __pyx_k_algorithm[] = "algorithm";
 static const char __pyx_k_enumerate[] = "enumerate";
 static const char __pyx_k_frame_num[] = "frame_num";
 static const char __pyx_k_max_modes[] = "max_modes";
@@ -2064,6 +2097,7 @@ static PyObject *__pyx_kp_s_Can_only_create_a_buffer_that_is;
 static PyObject *__pyx_kp_s_Cannot_index_with_type_s;
 static PyObject *__pyx_n_s_Ellipsis;
 static PyObject *__pyx_kp_s_Empty_shape_tuple_for_cython_arr;
+static PyObject *__pyx_n_s_FTSG;
 static PyObject *__pyx_kp_u_Format_string_allocated_too_shor;
 static PyObject *__pyx_kp_u_Format_string_allocated_too_shor_2;
 static PyObject *__pyx_n_s_ImportError;
@@ -2081,9 +2115,11 @@ static PyObject *__pyx_n_s_RuntimeError;
 static PyObject *__pyx_n_s_TypeError;
 static PyObject *__pyx_kp_s_Unable_to_convert_item_to_object;
 static PyObject *__pyx_n_s_ValueError;
+static PyObject *__pyx_n_s_algorithm;
 static PyObject *__pyx_n_s_allocate_buffer;
 static PyObject *__pyx_n_s_alpha;
 static PyObject *__pyx_n_s_base;
+static PyObject *__pyx_n_s_bgAlpha;
 static PyObject *__pyx_n_s_bg_threshold;
 static PyObject *__pyx_n_s_c;
 static PyObject *__pyx_n_u_c;
@@ -2091,10 +2127,12 @@ static PyObject *__pyx_n_s_channels;
 static PyObject *__pyx_n_s_class;
 static PyObject *__pyx_kp_s_contiguous_and_direct;
 static PyObject *__pyx_kp_s_contiguous_and_indirect;
+static PyObject *__pyx_n_s_data;
 static PyObject *__pyx_n_s_dtype_is_object;
 static PyObject *__pyx_n_s_encode;
 static PyObject *__pyx_n_s_enumerate;
 static PyObject *__pyx_n_s_error;
+static PyObject *__pyx_n_s_fgAlpha;
 static PyObject *__pyx_n_s_flags;
 static PyObject *__pyx_n_s_format;
 static PyObject *__pyx_n_s_fortran;
@@ -2115,6 +2153,10 @@ static PyObject *__pyx_n_s_max_modes;
 static PyObject *__pyx_n_s_memview;
 static PyObject *__pyx_n_s_min_variance;
 static PyObject *__pyx_n_s_mode;
+static PyObject *__pyx_n_s_nAs;
+static PyObject *__pyx_n_s_nAt;
+static PyObject *__pyx_n_s_nDs;
+static PyObject *__pyx_n_s_nDt;
 static PyObject *__pyx_n_s_name;
 static PyObject *__pyx_n_s_name_2;
 static PyObject *__pyx_kp_u_ndarray_is_not_C_contiguous;
@@ -2139,7 +2181,11 @@ static PyObject *__pyx_kp_s_strided_and_direct;
 static PyObject *__pyx_kp_s_strided_and_direct_or_indirect;
 static PyObject *__pyx_kp_s_strided_and_indirect;
 static PyObject *__pyx_n_s_struct;
+static PyObject *__pyx_n_s_tb;
 static PyObject *__pyx_n_s_test;
+static PyObject *__pyx_n_s_tf;
+static PyObject *__pyx_n_s_th;
+static PyObject *__pyx_n_s_tl;
 static PyObject *__pyx_kp_s_unable_to_allocate_array_data;
 static PyObject *__pyx_kp_s_unable_to_allocate_shape_and_str;
 static PyObject *__pyx_kp_u_unknown_dtype_code_in_numpy_pxd;
@@ -2148,9 +2194,8 @@ static PyObject *__pyx_n_s_variance;
 static PyObject *__pyx_n_s_variance_factor;
 static int __pyx_pf_5pybgs_21BackgroundSubtraction___init__(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self); /* proto */
 static void __pyx_pf_5pybgs_21BackgroundSubtraction_2__dealloc__(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_4init_model(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, __Pyx_memviewslice __pyx_v_image, PyObject *__pyx_v_params); /* proto */
-static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_6subtract(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, PyObject *__pyx_v_frame_num, __Pyx_memviewslice __pyx_v_image, __Pyx_memviewslice __pyx_v_low_threshold_mask, __Pyx_memviewslice __pyx_v_high_threshold_mask); /* proto */
-static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_8update(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, PyObject *__pyx_v_frame_num, __Pyx_memviewslice __pyx_v_image, __Pyx_memviewslice __pyx_v_low_threshold_mask); /* proto */
+static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_4init_model(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, __Pyx_memviewslice __pyx_v_data, __Pyx_memviewslice __pyx_v_image, PyObject *__pyx_v_params); /* proto */
+static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_6subtract(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, PyObject *__pyx_v_frame_num, __Pyx_memviewslice __pyx_v_data, __Pyx_memviewslice __pyx_v_image, __Pyx_memviewslice __pyx_v_low_threshold_mask, __Pyx_memviewslice __pyx_v_high_threshold_mask); /* proto */
 static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
 static void __pyx_pf_5numpy_7ndarray_2__releasebuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info); /* proto */
 static int __pyx_array___pyx_pf_15View_dot_MemoryView_5array___cinit__(struct __pyx_array_obj *__pyx_v_self, PyObject *__pyx_v_shape, Py_ssize_t __pyx_v_itemsize, PyObject *__pyx_v_format, PyObject *__pyx_v_mode, int __pyx_v_allocate_buffer); /* proto */
@@ -2221,12 +2266,12 @@ static PyObject *__pyx_tuple__25;
 static PyObject *__pyx_tuple__26;
 static PyObject *__pyx_tuple__27;
 
-/* "pybgs.pyx":93
+/* "pybgs.pyx":107
  *     cdef BwImage high_mask_image
  * 
  *     def __init__(self):             # <<<<<<<<<<<<<<
  *         self.image.ReleaseMemory(False)
- *         self.low_mask_image.ReleaseMemory(False)
+ *         self.data.ReleaseMemory(False)
  */
 
 /* Python wrapper */
@@ -2250,26 +2295,35 @@ static int __pyx_pf_5pybgs_21BackgroundSubtraction___init__(struct __pyx_obj_5py
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__init__", 0);
 
-  /* "pybgs.pyx":94
+  /* "pybgs.pyx":108
  * 
  *     def __init__(self):
  *         self.image.ReleaseMemory(False)             # <<<<<<<<<<<<<<
+ *         self.data.ReleaseMemory(False)
  *         self.low_mask_image.ReleaseMemory(False)
- *         self.high_mask_image.ReleaseMemory(False)
  */
   __pyx_v_self->image.ReleaseMemory(0);
 
-  /* "pybgs.pyx":95
+  /* "pybgs.pyx":109
  *     def __init__(self):
  *         self.image.ReleaseMemory(False)
+ *         self.data.ReleaseMemory(False)             # <<<<<<<<<<<<<<
+ *         self.low_mask_image.ReleaseMemory(False)
+ *         self.high_mask_image.ReleaseMemory(False)
+ */
+  __pyx_v_self->data.ReleaseMemory(0);
+
+  /* "pybgs.pyx":110
+ *         self.image.ReleaseMemory(False)
+ *         self.data.ReleaseMemory(False)
  *         self.low_mask_image.ReleaseMemory(False)             # <<<<<<<<<<<<<<
  *         self.high_mask_image.ReleaseMemory(False)
  * 
  */
   __pyx_v_self->low_mask_image.ReleaseMemory(0);
 
-  /* "pybgs.pyx":96
- *         self.image.ReleaseMemory(False)
+  /* "pybgs.pyx":111
+ *         self.data.ReleaseMemory(False)
  *         self.low_mask_image.ReleaseMemory(False)
  *         self.high_mask_image.ReleaseMemory(False)             # <<<<<<<<<<<<<<
  * 
@@ -2277,12 +2331,12 @@ static int __pyx_pf_5pybgs_21BackgroundSubtraction___init__(struct __pyx_obj_5py
  */
   __pyx_v_self->high_mask_image.ReleaseMemory(0);
 
-  /* "pybgs.pyx":93
+  /* "pybgs.pyx":107
  *     cdef BwImage high_mask_image
  * 
  *     def __init__(self):             # <<<<<<<<<<<<<<
  *         self.image.ReleaseMemory(False)
- *         self.low_mask_image.ReleaseMemory(False)
+ *         self.data.ReleaseMemory(False)
  */
 
   /* function exit code */
@@ -2291,12 +2345,12 @@ static int __pyx_pf_5pybgs_21BackgroundSubtraction___init__(struct __pyx_obj_5py
   return __pyx_r;
 }
 
-/* "pybgs.pyx":98
+/* "pybgs.pyx":113
  *         self.high_mask_image.ReleaseMemory(False)
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
+ *         cvReleaseImageHeader(&self.ipldata)
  *         cvReleaseImageHeader(&self.iplimage)
- *         cvReleaseImageHeader(&self.low_mask_iplimage)
  */
 
 /* Python wrapper */
@@ -2314,17 +2368,26 @@ static void __pyx_pf_5pybgs_21BackgroundSubtraction_2__dealloc__(struct __pyx_ob
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__dealloc__", 0);
 
-  /* "pybgs.pyx":99
+  /* "pybgs.pyx":114
  * 
  *     def __dealloc__(self):
+ *         cvReleaseImageHeader(&self.ipldata)             # <<<<<<<<<<<<<<
+ *         cvReleaseImageHeader(&self.iplimage)
+ *         cvReleaseImageHeader(&self.low_mask_iplimage)
+ */
+  cvReleaseImageHeader((&__pyx_v_self->ipldata));
+
+  /* "pybgs.pyx":115
+ *     def __dealloc__(self):
+ *         cvReleaseImageHeader(&self.ipldata)
  *         cvReleaseImageHeader(&self.iplimage)             # <<<<<<<<<<<<<<
  *         cvReleaseImageHeader(&self.low_mask_iplimage)
  *         cvReleaseImageHeader(&self.high_mask_iplimage)
  */
   cvReleaseImageHeader((&__pyx_v_self->iplimage));
 
-  /* "pybgs.pyx":100
- *     def __dealloc__(self):
+  /* "pybgs.pyx":116
+ *         cvReleaseImageHeader(&self.ipldata)
  *         cvReleaseImageHeader(&self.iplimage)
  *         cvReleaseImageHeader(&self.low_mask_iplimage)             # <<<<<<<<<<<<<<
  *         cvReleaseImageHeader(&self.high_mask_iplimage)
@@ -2332,7 +2395,7 @@ static void __pyx_pf_5pybgs_21BackgroundSubtraction_2__dealloc__(struct __pyx_ob
  */
   cvReleaseImageHeader((&__pyx_v_self->low_mask_iplimage));
 
-  /* "pybgs.pyx":101
+  /* "pybgs.pyx":117
  *         cvReleaseImageHeader(&self.iplimage)
  *         cvReleaseImageHeader(&self.low_mask_iplimage)
  *         cvReleaseImageHeader(&self.high_mask_iplimage)             # <<<<<<<<<<<<<<
@@ -2341,562 +2404,46 @@ static void __pyx_pf_5pybgs_21BackgroundSubtraction_2__dealloc__(struct __pyx_ob
  */
   cvReleaseImageHeader((&__pyx_v_self->high_mask_iplimage));
 
-  /* "pybgs.pyx":102
+  /* "pybgs.pyx":118
  *         cvReleaseImageHeader(&self.low_mask_iplimage)
  *         cvReleaseImageHeader(&self.high_mask_iplimage)
  *         del self.bg             # <<<<<<<<<<<<<<
  * 
- *     def init_model(self, np.float32_t[:, :, :] image, params):
+ *     def init_model(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image, params):
  */
   delete __pyx_v_self->bg;
 
-  /* "pybgs.pyx":98
+  /* "pybgs.pyx":113
  *         self.high_mask_image.ReleaseMemory(False)
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
+ *         cvReleaseImageHeader(&self.ipldata)
  *         cvReleaseImageHeader(&self.iplimage)
- *         cvReleaseImageHeader(&self.low_mask_iplimage)
  */
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
 }
 
-/* "pybgs.pyx":104
+/* "pybgs.pyx":120
  *         del self.bg
  * 
- *     def init_model(self, np.float32_t[:, :, :] image, params):             # <<<<<<<<<<<<<<
- *         self.bg = new GrimsonGMM()
- *         grimson_gmm_params = CreateGrimsonGMMParams(
+ *     def init_model(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image, params):             # <<<<<<<<<<<<<<
+ *         if(params['algorithm'] == 'FTSG'):
+ *             self.bg = new FTSG()
  */
 
 /* Python wrapper */
 static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_5init_model(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
 static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_5init_model(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+  __Pyx_memviewslice __pyx_v_data = { 0, 0, { 0 }, { 0 }, { 0 } };
   __Pyx_memviewslice __pyx_v_image = { 0, 0, { 0 }, { 0 }, { 0 } };
   PyObject *__pyx_v_params = 0;
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("init_model (wrapper)", 0);
   {
-    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_image,&__pyx_n_s_params,0};
-    PyObject* values[2] = {0,0};
-    if (unlikely(__pyx_kwds)) {
-      Py_ssize_t kw_args;
-      const Py_ssize_t pos_args = PyTuple_GET_SIZE(__pyx_args);
-      switch (pos_args) {
-        case  2: values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
-        case  1: values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
-        case  0: break;
-        default: goto __pyx_L5_argtuple_error;
-      }
-      kw_args = PyDict_Size(__pyx_kwds);
-      switch (pos_args) {
-        case  0:
-        if (likely((values[0] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_image)) != 0)) kw_args--;
-        else goto __pyx_L5_argtuple_error;
-        case  1:
-        if (likely((values[1] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_params)) != 0)) kw_args--;
-        else {
-          __Pyx_RaiseArgtupleInvalid("init_model", 1, 2, 2, 1); __PYX_ERR(0, 104, __pyx_L3_error)
-        }
-      }
-      if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "init_model") < 0)) __PYX_ERR(0, 104, __pyx_L3_error)
-      }
-    } else if (PyTuple_GET_SIZE(__pyx_args) != 2) {
-      goto __pyx_L5_argtuple_error;
-    } else {
-      values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
-      values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
-    }
-    __pyx_v_image = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_float32_t(values[0]); if (unlikely(!__pyx_v_image.memview)) __PYX_ERR(0, 104, __pyx_L3_error)
-    __pyx_v_params = values[1];
-  }
-  goto __pyx_L4_argument_unpacking_done;
-  __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("init_model", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 104, __pyx_L3_error)
-  __pyx_L3_error:;
-  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.init_model", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  __Pyx_RefNannyFinishContext();
-  return NULL;
-  __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5pybgs_21BackgroundSubtraction_4init_model(((struct __pyx_obj_5pybgs_BackgroundSubtraction *)__pyx_v_self), __pyx_v_image, __pyx_v_params);
-
-  /* function exit code */
-  __Pyx_RefNannyFinishContext();
-  return __pyx_r;
-}
-
-static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_4init_model(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, __Pyx_memviewslice __pyx_v_image, PyObject *__pyx_v_params) {
-  Algorithms::BackgroundSubtraction::GrimsonParams __pyx_v_grimson_gmm_params;
-  struct CvSize __pyx_v_size;
-  PyObject *__pyx_r = NULL;
-  __Pyx_RefNannyDeclarations
-  Algorithms::BackgroundSubtraction::GrimsonGMM *__pyx_t_1;
-  PyObject *__pyx_t_2 = NULL;
-  float __pyx_t_3;
-  float __pyx_t_4;
-  float __pyx_t_5;
-  float __pyx_t_6;
-  int __pyx_t_7;
-  float __pyx_t_8;
-  float __pyx_t_9;
-  float __pyx_t_10;
-  float __pyx_t_11;
-  Py_ssize_t __pyx_t_12;
-  Py_ssize_t __pyx_t_13;
-  Py_ssize_t __pyx_t_14;
-  __Pyx_RefNannySetupContext("init_model", 0);
-
-  /* "pybgs.pyx":105
- * 
- *     def init_model(self, np.float32_t[:, :, :] image, params):
- *         self.bg = new GrimsonGMM()             # <<<<<<<<<<<<<<
- *         grimson_gmm_params = CreateGrimsonGMMParams(
- * 		image.shape[1], image.shape[0],
- */
-  try {
-    __pyx_t_1 = new Algorithms::BackgroundSubtraction::GrimsonGMM();
-  } catch(...) {
-    __Pyx_CppExn2PyErr();
-    __PYX_ERR(0, 105, __pyx_L1_error)
-  }
-  __pyx_v_self->bg = __pyx_t_1;
-
-  /* "pybgs.pyx":108
- *         grimson_gmm_params = CreateGrimsonGMMParams(
- * 		image.shape[1], image.shape[0],
- * 		params['low'], params['high'],             # <<<<<<<<<<<<<<
- * 		params['alpha'], params['max_modes'],params['channels'],params['bg_threshold'],params['variance'],params['min_variance'],params['variance_factor'])
- *         self.bg.Initalize(grimson_gmm_params)
- */
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_low); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 108, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_3 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 108, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_high); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 108, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_4 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_4 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 108, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-
-  /* "pybgs.pyx":109
- * 		image.shape[1], image.shape[0],
- * 		params['low'], params['high'],
- * 		params['alpha'], params['max_modes'],params['channels'],params['bg_threshold'],params['variance'],params['min_variance'],params['variance_factor'])             # <<<<<<<<<<<<<<
- *         self.bg.Initalize(grimson_gmm_params)
- * 
- */
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_alpha); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_5 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_5 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_max_modes); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_6 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_6 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_channels); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_7 = __Pyx_PyInt_As_int(__pyx_t_2); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_bg_threshold); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_8 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_8 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_variance); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_9 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_min_variance); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_10 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_10 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_variance_factor); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_11 = __pyx_PyFloat_AsFloat(__pyx_t_2); if (unlikely((__pyx_t_11 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-
-  /* "pybgs.pyx":106
- *     def init_model(self, np.float32_t[:, :, :] image, params):
- *         self.bg = new GrimsonGMM()
- *         grimson_gmm_params = CreateGrimsonGMMParams(             # <<<<<<<<<<<<<<
- * 		image.shape[1], image.shape[0],
- * 		params['low'], params['high'],
- */
-  __pyx_v_grimson_gmm_params = CreateGrimsonGMMParams((__pyx_v_image.shape[1]), (__pyx_v_image.shape[0]), __pyx_t_3, __pyx_t_4, __pyx_t_5, __pyx_t_6, __pyx_t_7, __pyx_t_8, __pyx_t_9, __pyx_t_10, __pyx_t_11);
-
-  /* "pybgs.pyx":110
- * 		params['low'], params['high'],
- * 		params['alpha'], params['max_modes'],params['channels'],params['bg_threshold'],params['variance'],params['min_variance'],params['variance_factor'])
- *         self.bg.Initalize(grimson_gmm_params)             # <<<<<<<<<<<<<<
- * 
- *         cdef CvSize size
- */
-  __pyx_v_self->bg->Initalize(__pyx_v_grimson_gmm_params);
-
-  /* "pybgs.pyx":113
- * 
- *         cdef CvSize size
- *         size.width = image.shape[1]             # <<<<<<<<<<<<<<
- *         size.height = image.shape[0]
- *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
- */
-  __pyx_v_size.width = (__pyx_v_image.shape[1]);
-
-  /* "pybgs.pyx":114
- *         cdef CvSize size
- *         size.width = image.shape[1]
- *         size.height = image.shape[0]             # <<<<<<<<<<<<<<
- *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
- *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
- */
-  __pyx_v_size.height = (__pyx_v_image.shape[0]);
-
-  /* "pybgs.pyx":115
- *         size.width = image.shape[1]
- *         size.height = image.shape[0]
- *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])             # <<<<<<<<<<<<<<
- *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
- *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
- */
-  __pyx_v_self->iplimage = cvCreateImageHeader(__pyx_v_size, IPL_DEPTH_32F, (__pyx_v_image.shape[2]));
-
-  /* "pybgs.pyx":116
- *         size.height = image.shape[0]
- *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
- *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)             # <<<<<<<<<<<<<<
- *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
- * 
- */
-  __pyx_v_self->low_mask_iplimage = cvCreateImageHeader(__pyx_v_size, IPL_DEPTH_8U, 1);
-
-  /* "pybgs.pyx":117
- *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
- *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
- *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)             # <<<<<<<<<<<<<<
- * 
- *         set_image_data(&self.image, self.iplimage,
- */
-  __pyx_v_self->high_mask_iplimage = cvCreateImageHeader(__pyx_v_size, IPL_DEPTH_8U, 1);
-
-  /* "pybgs.pyx":120
- * 
- *         set_image_data(&self.image, self.iplimage,
- *                        &image[0, 0, 0], image.strides[0])             # <<<<<<<<<<<<<<
- *         self.bg.InitModel(self.image)
- * 
- */
-  __pyx_t_12 = 0;
-  __pyx_t_13 = 0;
-  __pyx_t_14 = 0;
-  __pyx_t_7 = -1;
-  if (__pyx_t_12 < 0) {
-    __pyx_t_12 += __pyx_v_image.shape[0];
-    if (unlikely(__pyx_t_12 < 0)) __pyx_t_7 = 0;
-  } else if (unlikely(__pyx_t_12 >= __pyx_v_image.shape[0])) __pyx_t_7 = 0;
-  if (__pyx_t_13 < 0) {
-    __pyx_t_13 += __pyx_v_image.shape[1];
-    if (unlikely(__pyx_t_13 < 0)) __pyx_t_7 = 1;
-  } else if (unlikely(__pyx_t_13 >= __pyx_v_image.shape[1])) __pyx_t_7 = 1;
-  if (__pyx_t_14 < 0) {
-    __pyx_t_14 += __pyx_v_image.shape[2];
-    if (unlikely(__pyx_t_14 < 0)) __pyx_t_7 = 2;
-  } else if (unlikely(__pyx_t_14 >= __pyx_v_image.shape[2])) __pyx_t_7 = 2;
-  if (unlikely(__pyx_t_7 != -1)) {
-    __Pyx_RaiseBufferIndexError(__pyx_t_7);
-    __PYX_ERR(0, 120, __pyx_L1_error)
-  }
-
-  /* "pybgs.pyx":119
- *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
- * 
- *         set_image_data(&self.image, self.iplimage,             # <<<<<<<<<<<<<<
- *                        &image[0, 0, 0], image.strides[0])
- *         self.bg.InitModel(self.image)
- */
-  set_image_data((&__pyx_v_self->image), __pyx_v_self->iplimage, (&(*((__pyx_t_5numpy_float32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_image.data + __pyx_t_12 * __pyx_v_image.strides[0]) ) + __pyx_t_13 * __pyx_v_image.strides[1]) ) + __pyx_t_14 * __pyx_v_image.strides[2]) )))), (__pyx_v_image.strides[0]));
-
-  /* "pybgs.pyx":121
- *         set_image_data(&self.image, self.iplimage,
- *                        &image[0, 0, 0], image.strides[0])
- *         self.bg.InitModel(self.image)             # <<<<<<<<<<<<<<
- * 
- *     def subtract(self, frame_num, np.float32_t[:, :, :] image,
- */
-  __pyx_v_self->bg->InitModel(__pyx_v_self->image);
-
-  /* "pybgs.pyx":104
- *         del self.bg
- * 
- *     def init_model(self, np.float32_t[:, :, :] image, params):             # <<<<<<<<<<<<<<
- *         self.bg = new GrimsonGMM()
- *         grimson_gmm_params = CreateGrimsonGMMParams(
- */
-
-  /* function exit code */
-  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
-  goto __pyx_L0;
-  __pyx_L1_error:;
-  __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.init_model", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  __pyx_r = NULL;
-  __pyx_L0:;
-  __PYX_XDEC_MEMVIEW(&__pyx_v_image, 1);
-  __Pyx_XGIVEREF(__pyx_r);
-  __Pyx_RefNannyFinishContext();
-  return __pyx_r;
-}
-
-/* "pybgs.pyx":123
- *         self.bg.InitModel(self.image)
- * 
- *     def subtract(self, frame_num, np.float32_t[:, :, :] image,             # <<<<<<<<<<<<<<
- *                  np.uint8_t[:, :] low_threshold_mask,
- *                  np.uint8_t[:, :] high_threshold_mask):
- */
-
-/* Python wrapper */
-static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_7subtract(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_7subtract(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
-  PyObject *__pyx_v_frame_num = 0;
-  __Pyx_memviewslice __pyx_v_image = { 0, 0, { 0 }, { 0 }, { 0 } };
-  __Pyx_memviewslice __pyx_v_low_threshold_mask = { 0, 0, { 0 }, { 0 }, { 0 } };
-  __Pyx_memviewslice __pyx_v_high_threshold_mask = { 0, 0, { 0 }, { 0 }, { 0 } };
-  PyObject *__pyx_r = 0;
-  __Pyx_RefNannyDeclarations
-  __Pyx_RefNannySetupContext("subtract (wrapper)", 0);
-  {
-    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_frame_num,&__pyx_n_s_image,&__pyx_n_s_low_threshold_mask,&__pyx_n_s_high_threshold_mask,0};
-    PyObject* values[4] = {0,0,0,0};
-    if (unlikely(__pyx_kwds)) {
-      Py_ssize_t kw_args;
-      const Py_ssize_t pos_args = PyTuple_GET_SIZE(__pyx_args);
-      switch (pos_args) {
-        case  4: values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
-        case  3: values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
-        case  2: values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
-        case  1: values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
-        case  0: break;
-        default: goto __pyx_L5_argtuple_error;
-      }
-      kw_args = PyDict_Size(__pyx_kwds);
-      switch (pos_args) {
-        case  0:
-        if (likely((values[0] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_frame_num)) != 0)) kw_args--;
-        else goto __pyx_L5_argtuple_error;
-        case  1:
-        if (likely((values[1] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_image)) != 0)) kw_args--;
-        else {
-          __Pyx_RaiseArgtupleInvalid("subtract", 1, 4, 4, 1); __PYX_ERR(0, 123, __pyx_L3_error)
-        }
-        case  2:
-        if (likely((values[2] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_low_threshold_mask)) != 0)) kw_args--;
-        else {
-          __Pyx_RaiseArgtupleInvalid("subtract", 1, 4, 4, 2); __PYX_ERR(0, 123, __pyx_L3_error)
-        }
-        case  3:
-        if (likely((values[3] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_high_threshold_mask)) != 0)) kw_args--;
-        else {
-          __Pyx_RaiseArgtupleInvalid("subtract", 1, 4, 4, 3); __PYX_ERR(0, 123, __pyx_L3_error)
-        }
-      }
-      if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "subtract") < 0)) __PYX_ERR(0, 123, __pyx_L3_error)
-      }
-    } else if (PyTuple_GET_SIZE(__pyx_args) != 4) {
-      goto __pyx_L5_argtuple_error;
-    } else {
-      values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
-      values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
-      values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
-      values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
-    }
-    __pyx_v_frame_num = values[0];
-    __pyx_v_image = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_float32_t(values[1]); if (unlikely(!__pyx_v_image.memview)) __PYX_ERR(0, 123, __pyx_L3_error)
-    __pyx_v_low_threshold_mask = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint8_t(values[2]); if (unlikely(!__pyx_v_low_threshold_mask.memview)) __PYX_ERR(0, 124, __pyx_L3_error)
-    __pyx_v_high_threshold_mask = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint8_t(values[3]); if (unlikely(!__pyx_v_high_threshold_mask.memview)) __PYX_ERR(0, 125, __pyx_L3_error)
-  }
-  goto __pyx_L4_argument_unpacking_done;
-  __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("subtract", 1, 4, 4, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 123, __pyx_L3_error)
-  __pyx_L3_error:;
-  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.subtract", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  __Pyx_RefNannyFinishContext();
-  return NULL;
-  __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5pybgs_21BackgroundSubtraction_6subtract(((struct __pyx_obj_5pybgs_BackgroundSubtraction *)__pyx_v_self), __pyx_v_frame_num, __pyx_v_image, __pyx_v_low_threshold_mask, __pyx_v_high_threshold_mask);
-
-  /* function exit code */
-  __Pyx_RefNannyFinishContext();
-  return __pyx_r;
-}
-
-static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_6subtract(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, PyObject *__pyx_v_frame_num, __Pyx_memviewslice __pyx_v_image, __Pyx_memviewslice __pyx_v_low_threshold_mask, __Pyx_memviewslice __pyx_v_high_threshold_mask) {
-  PyObject *__pyx_r = NULL;
-  __Pyx_RefNannyDeclarations
-  Py_ssize_t __pyx_t_1;
-  Py_ssize_t __pyx_t_2;
-  Py_ssize_t __pyx_t_3;
-  int __pyx_t_4;
-  Py_ssize_t __pyx_t_5;
-  Py_ssize_t __pyx_t_6;
-  Py_ssize_t __pyx_t_7;
-  Py_ssize_t __pyx_t_8;
-  __Pyx_RefNannySetupContext("subtract", 0);
-
-  /* "pybgs.pyx":128
- * 
- *         set_image_data(<ImageBase *>(&self.image), self.iplimage,
- *                        &image[0, 0, 0], image.strides[0])             # <<<<<<<<<<<<<<
- *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
- *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
- */
-  __pyx_t_1 = 0;
-  __pyx_t_2 = 0;
-  __pyx_t_3 = 0;
-  __pyx_t_4 = -1;
-  if (__pyx_t_1 < 0) {
-    __pyx_t_1 += __pyx_v_image.shape[0];
-    if (unlikely(__pyx_t_1 < 0)) __pyx_t_4 = 0;
-  } else if (unlikely(__pyx_t_1 >= __pyx_v_image.shape[0])) __pyx_t_4 = 0;
-  if (__pyx_t_2 < 0) {
-    __pyx_t_2 += __pyx_v_image.shape[1];
-    if (unlikely(__pyx_t_2 < 0)) __pyx_t_4 = 1;
-  } else if (unlikely(__pyx_t_2 >= __pyx_v_image.shape[1])) __pyx_t_4 = 1;
-  if (__pyx_t_3 < 0) {
-    __pyx_t_3 += __pyx_v_image.shape[2];
-    if (unlikely(__pyx_t_3 < 0)) __pyx_t_4 = 2;
-  } else if (unlikely(__pyx_t_3 >= __pyx_v_image.shape[2])) __pyx_t_4 = 2;
-  if (unlikely(__pyx_t_4 != -1)) {
-    __Pyx_RaiseBufferIndexError(__pyx_t_4);
-    __PYX_ERR(0, 128, __pyx_L1_error)
-  }
-
-  /* "pybgs.pyx":127
- *                  np.uint8_t[:, :] high_threshold_mask):
- * 
- *         set_image_data(<ImageBase *>(&self.image), self.iplimage,             # <<<<<<<<<<<<<<
- *                        &image[0, 0, 0], image.strides[0])
- *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
- */
-  set_image_data(((ImageBase *)(&__pyx_v_self->image)), __pyx_v_self->iplimage, (&(*((__pyx_t_5numpy_float32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_image.data + __pyx_t_1 * __pyx_v_image.strides[0]) ) + __pyx_t_2 * __pyx_v_image.strides[1]) ) + __pyx_t_3 * __pyx_v_image.strides[2]) )))), (__pyx_v_image.strides[0]));
-
-  /* "pybgs.pyx":130
- *                        &image[0, 0, 0], image.strides[0])
- *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
- *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])             # <<<<<<<<<<<<<<
- *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
- *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])
- */
-  __pyx_t_5 = 0;
-  __pyx_t_6 = 0;
-  __pyx_t_4 = -1;
-  if (__pyx_t_5 < 0) {
-    __pyx_t_5 += __pyx_v_low_threshold_mask.shape[0];
-    if (unlikely(__pyx_t_5 < 0)) __pyx_t_4 = 0;
-  } else if (unlikely(__pyx_t_5 >= __pyx_v_low_threshold_mask.shape[0])) __pyx_t_4 = 0;
-  if (__pyx_t_6 < 0) {
-    __pyx_t_6 += __pyx_v_low_threshold_mask.shape[1];
-    if (unlikely(__pyx_t_6 < 0)) __pyx_t_4 = 1;
-  } else if (unlikely(__pyx_t_6 >= __pyx_v_low_threshold_mask.shape[1])) __pyx_t_4 = 1;
-  if (unlikely(__pyx_t_4 != -1)) {
-    __Pyx_RaiseBufferIndexError(__pyx_t_4);
-    __PYX_ERR(0, 130, __pyx_L1_error)
-  }
-
-  /* "pybgs.pyx":129
- *         set_image_data(<ImageBase *>(&self.image), self.iplimage,
- *                        &image[0, 0, 0], image.strides[0])
- *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,             # <<<<<<<<<<<<<<
- *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
- *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
- */
-  set_image_data(((ImageBase *)(&__pyx_v_self->low_mask_image)), __pyx_v_self->low_mask_iplimage, (&(*((__pyx_t_5numpy_uint8_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_low_threshold_mask.data + __pyx_t_5 * __pyx_v_low_threshold_mask.strides[0]) ) + __pyx_t_6 * __pyx_v_low_threshold_mask.strides[1]) )))), (__pyx_v_low_threshold_mask.strides[0]));
-
-  /* "pybgs.pyx":132
- *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
- *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
- *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])             # <<<<<<<<<<<<<<
- *         self.bg.Subtract(frame_num, self.image, self.low_mask_image, self.high_mask_image)
- * 
- */
-  __pyx_t_7 = 0;
-  __pyx_t_8 = 0;
-  __pyx_t_4 = -1;
-  if (__pyx_t_7 < 0) {
-    __pyx_t_7 += __pyx_v_high_threshold_mask.shape[0];
-    if (unlikely(__pyx_t_7 < 0)) __pyx_t_4 = 0;
-  } else if (unlikely(__pyx_t_7 >= __pyx_v_high_threshold_mask.shape[0])) __pyx_t_4 = 0;
-  if (__pyx_t_8 < 0) {
-    __pyx_t_8 += __pyx_v_high_threshold_mask.shape[1];
-    if (unlikely(__pyx_t_8 < 0)) __pyx_t_4 = 1;
-  } else if (unlikely(__pyx_t_8 >= __pyx_v_high_threshold_mask.shape[1])) __pyx_t_4 = 1;
-  if (unlikely(__pyx_t_4 != -1)) {
-    __Pyx_RaiseBufferIndexError(__pyx_t_4);
-    __PYX_ERR(0, 132, __pyx_L1_error)
-  }
-
-  /* "pybgs.pyx":131
- *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
- *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
- *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,             # <<<<<<<<<<<<<<
- *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])
- *         self.bg.Subtract(frame_num, self.image, self.low_mask_image, self.high_mask_image)
- */
-  set_image_data(((ImageBase *)(&__pyx_v_self->high_mask_image)), __pyx_v_self->high_mask_iplimage, (&(*((__pyx_t_5numpy_uint8_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_high_threshold_mask.data + __pyx_t_7 * __pyx_v_high_threshold_mask.strides[0]) ) + __pyx_t_8 * __pyx_v_high_threshold_mask.strides[1]) )))), (__pyx_v_high_threshold_mask.strides[0]));
-
-  /* "pybgs.pyx":133
- *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
- *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])
- *         self.bg.Subtract(frame_num, self.image, self.low_mask_image, self.high_mask_image)             # <<<<<<<<<<<<<<
- * 
- *     def update(self, frame_num, np.float32_t[:, :, :] image,
- */
-  __pyx_t_4 = __Pyx_PyInt_As_int(__pyx_v_frame_num); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
-  __pyx_v_self->bg->Subtract(__pyx_t_4, __pyx_v_self->image, __pyx_v_self->low_mask_image, __pyx_v_self->high_mask_image);
-
-  /* "pybgs.pyx":123
- *         self.bg.InitModel(self.image)
- * 
- *     def subtract(self, frame_num, np.float32_t[:, :, :] image,             # <<<<<<<<<<<<<<
- *                  np.uint8_t[:, :] low_threshold_mask,
- *                  np.uint8_t[:, :] high_threshold_mask):
- */
-
-  /* function exit code */
-  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
-  goto __pyx_L0;
-  __pyx_L1_error:;
-  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.subtract", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  __pyx_r = NULL;
-  __pyx_L0:;
-  __PYX_XDEC_MEMVIEW(&__pyx_v_image, 1);
-  __PYX_XDEC_MEMVIEW(&__pyx_v_low_threshold_mask, 1);
-  __PYX_XDEC_MEMVIEW(&__pyx_v_high_threshold_mask, 1);
-  __Pyx_XGIVEREF(__pyx_r);
-  __Pyx_RefNannyFinishContext();
-  return __pyx_r;
-}
-
-/* "pybgs.pyx":135
- *         self.bg.Subtract(frame_num, self.image, self.low_mask_image, self.high_mask_image)
- * 
- *     def update(self, frame_num, np.float32_t[:, :, :] image,             # <<<<<<<<<<<<<<
- *                np.uint8_t[:, :] low_threshold_mask):
- *         set_image_data(<ImageBase *>(&self.image), self.iplimage,
- */
-
-/* Python wrapper */
-static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_9update(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_9update(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
-  PyObject *__pyx_v_frame_num = 0;
-  __Pyx_memviewslice __pyx_v_image = { 0, 0, { 0 }, { 0 }, { 0 } };
-  __Pyx_memviewslice __pyx_v_low_threshold_mask = { 0, 0, { 0 }, { 0 }, { 0 } };
-  PyObject *__pyx_r = 0;
-  __Pyx_RefNannyDeclarations
-  __Pyx_RefNannySetupContext("update (wrapper)", 0);
-  {
-    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_frame_num,&__pyx_n_s_image,&__pyx_n_s_low_threshold_mask,0};
+    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_data,&__pyx_n_s_image,&__pyx_n_s_params,0};
     PyObject* values[3] = {0,0,0};
     if (unlikely(__pyx_kwds)) {
       Py_ssize_t kw_args;
@@ -2911,21 +2458,21 @@ static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_9update(PyObject *__pyx
       kw_args = PyDict_Size(__pyx_kwds);
       switch (pos_args) {
         case  0:
-        if (likely((values[0] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_frame_num)) != 0)) kw_args--;
+        if (likely((values[0] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_data)) != 0)) kw_args--;
         else goto __pyx_L5_argtuple_error;
         case  1:
         if (likely((values[1] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_image)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("update", 1, 3, 3, 1); __PYX_ERR(0, 135, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("init_model", 1, 3, 3, 1); __PYX_ERR(0, 120, __pyx_L3_error)
         }
         case  2:
-        if (likely((values[2] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_low_threshold_mask)) != 0)) kw_args--;
+        if (likely((values[2] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_params)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("update", 1, 3, 3, 2); __PYX_ERR(0, 135, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("init_model", 1, 3, 3, 2); __PYX_ERR(0, 120, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "update") < 0)) __PYX_ERR(0, 135, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "init_model") < 0)) __PYX_ERR(0, 120, __pyx_L3_error)
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 3) {
       goto __pyx_L5_argtuple_error;
@@ -2934,26 +2481,509 @@ static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_9update(PyObject *__pyx
       values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
       values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
     }
-    __pyx_v_frame_num = values[0];
-    __pyx_v_image = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_float32_t(values[1]); if (unlikely(!__pyx_v_image.memview)) __PYX_ERR(0, 135, __pyx_L3_error)
-    __pyx_v_low_threshold_mask = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint8_t(values[2]); if (unlikely(!__pyx_v_low_threshold_mask.memview)) __PYX_ERR(0, 136, __pyx_L3_error)
+    __pyx_v_data = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_float32_t(values[0]); if (unlikely(!__pyx_v_data.memview)) __PYX_ERR(0, 120, __pyx_L3_error)
+    __pyx_v_image = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_float32_t(values[1]); if (unlikely(!__pyx_v_image.memview)) __PYX_ERR(0, 120, __pyx_L3_error)
+    __pyx_v_params = values[2];
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("update", 1, 3, 3, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 135, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("init_model", 1, 3, 3, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 120, __pyx_L3_error)
   __pyx_L3_error:;
-  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.update", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.init_model", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_5pybgs_21BackgroundSubtraction_8update(((struct __pyx_obj_5pybgs_BackgroundSubtraction *)__pyx_v_self), __pyx_v_frame_num, __pyx_v_image, __pyx_v_low_threshold_mask);
+  __pyx_r = __pyx_pf_5pybgs_21BackgroundSubtraction_4init_model(((struct __pyx_obj_5pybgs_BackgroundSubtraction *)__pyx_v_self), __pyx_v_data, __pyx_v_image, __pyx_v_params);
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_8update(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, PyObject *__pyx_v_frame_num, __Pyx_memviewslice __pyx_v_image, __Pyx_memviewslice __pyx_v_low_threshold_mask) {
+static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_4init_model(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, __Pyx_memviewslice __pyx_v_data, __Pyx_memviewslice __pyx_v_image, PyObject *__pyx_v_params) {
+  Algorithms::BackgroundSubtraction::FTSGParams __pyx_v_ftsg_params;
+  Algorithms::BackgroundSubtraction::GrimsonParams __pyx_v_grimson_gmm_params;
+  struct CvSize __pyx_v_size;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_t_2;
+  Algorithms::BackgroundSubtraction::FTSG *__pyx_t_3;
+  float __pyx_t_4;
+  int __pyx_t_5;
+  int __pyx_t_6;
+  int __pyx_t_7;
+  int __pyx_t_8;
+  float __pyx_t_9;
+  float __pyx_t_10;
+  float __pyx_t_11;
+  float __pyx_t_12;
+  float __pyx_t_13;
+  Algorithms::BackgroundSubtraction::GrimsonGMM *__pyx_t_14;
+  float __pyx_t_15;
+  float __pyx_t_16;
+  Py_ssize_t __pyx_t_17;
+  Py_ssize_t __pyx_t_18;
+  Py_ssize_t __pyx_t_19;
+  Py_ssize_t __pyx_t_20;
+  Py_ssize_t __pyx_t_21;
+  Py_ssize_t __pyx_t_22;
+  __Pyx_RefNannySetupContext("init_model", 0);
+
+  /* "pybgs.pyx":121
+ * 
+ *     def init_model(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image, params):
+ *         if(params['algorithm'] == 'FTSG'):             # <<<<<<<<<<<<<<
+ *             self.bg = new FTSG()
+ *             ftsg_params = CreateFTSGParams(
+ */
+  __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_algorithm); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 121, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_t_2 = (__Pyx_PyString_Equals(__pyx_t_1, __pyx_n_s_FTSG, Py_EQ)); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 121, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+  if (__pyx_t_2) {
+
+    /* "pybgs.pyx":122
+ *     def init_model(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image, params):
+ *         if(params['algorithm'] == 'FTSG'):
+ *             self.bg = new FTSG()             # <<<<<<<<<<<<<<
+ *             ftsg_params = CreateFTSGParams(
+ * 	    	image.shape[1], image.shape[0],
+ */
+    try {
+      __pyx_t_3 = new Algorithms::BackgroundSubtraction::FTSG();
+    } catch(...) {
+      __Pyx_CppExn2PyErr();
+      __PYX_ERR(0, 122, __pyx_L1_error)
+    }
+    __pyx_v_self->bg = __pyx_t_3;
+
+    /* "pybgs.pyx":125
+ *             ftsg_params = CreateFTSGParams(
+ * 	    	image.shape[1], image.shape[0],
+ * 	    	params['th'], params['nDs'], params['nDt'], params['nAs'], params['nAt'],             # <<<<<<<<<<<<<<
+ * 	    	params['bgAlpha'], params['fgAlpha'],params['tb'],params['tf'],params['tl'])
+ *             self.bg.Initalize(ftsg_params)
+ */
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_th); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_4 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_4 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_nDs); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_5 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_nDt); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_6 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_nAs); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_7 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_nAt); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_8 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+
+    /* "pybgs.pyx":126
+ * 	    	image.shape[1], image.shape[0],
+ * 	    	params['th'], params['nDs'], params['nDt'], params['nAs'], params['nAt'],
+ * 	    	params['bgAlpha'], params['fgAlpha'],params['tb'],params['tf'],params['tl'])             # <<<<<<<<<<<<<<
+ *             self.bg.Initalize(ftsg_params)
+ *         else:
+ */
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_bgAlpha); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_9 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_fgAlpha); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_10 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_10 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_tb); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_11 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_11 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_tf); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_12 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_12 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_tl); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_13 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_13 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 126, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+
+    /* "pybgs.pyx":123
+ *         if(params['algorithm'] == 'FTSG'):
+ *             self.bg = new FTSG()
+ *             ftsg_params = CreateFTSGParams(             # <<<<<<<<<<<<<<
+ * 	    	image.shape[1], image.shape[0],
+ * 	    	params['th'], params['nDs'], params['nDt'], params['nAs'], params['nAt'],
+ */
+    __pyx_v_ftsg_params = CreateFTSGParams((__pyx_v_image.shape[1]), (__pyx_v_image.shape[0]), __pyx_t_4, __pyx_t_5, __pyx_t_6, __pyx_t_7, __pyx_t_8, __pyx_t_9, __pyx_t_10, __pyx_t_11, __pyx_t_12, __pyx_t_13);
+
+    /* "pybgs.pyx":127
+ * 	    	params['th'], params['nDs'], params['nDt'], params['nAs'], params['nAt'],
+ * 	    	params['bgAlpha'], params['fgAlpha'],params['tb'],params['tf'],params['tl'])
+ *             self.bg.Initalize(ftsg_params)             # <<<<<<<<<<<<<<
+ *         else:
+ *             self.bg = new GrimsonGMM()
+ */
+    __pyx_v_self->bg->Initalize(__pyx_v_ftsg_params);
+
+    /* "pybgs.pyx":121
+ * 
+ *     def init_model(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image, params):
+ *         if(params['algorithm'] == 'FTSG'):             # <<<<<<<<<<<<<<
+ *             self.bg = new FTSG()
+ *             ftsg_params = CreateFTSGParams(
+ */
+    goto __pyx_L3;
+  }
+
+  /* "pybgs.pyx":129
+ *             self.bg.Initalize(ftsg_params)
+ *         else:
+ *             self.bg = new GrimsonGMM()             # <<<<<<<<<<<<<<
+ *             grimson_gmm_params = CreateGrimsonGMMParams(
+ * 	    	image.shape[1], image.shape[0],
+ */
+  /*else*/ {
+    try {
+      __pyx_t_14 = new Algorithms::BackgroundSubtraction::GrimsonGMM();
+    } catch(...) {
+      __Pyx_CppExn2PyErr();
+      __PYX_ERR(0, 129, __pyx_L1_error)
+    }
+    __pyx_v_self->bg = __pyx_t_14;
+
+    /* "pybgs.pyx":132
+ *             grimson_gmm_params = CreateGrimsonGMMParams(
+ * 	    	image.shape[1], image.shape[0],
+ * 	    	params['low'], params['high'],             # <<<<<<<<<<<<<<
+ * 	    	params['alpha'], params['max_modes'],params['channels'],params['bg_threshold'],params['variance'],params['min_variance'],params['variance_factor'])
+ *             self.bg.Initalize(grimson_gmm_params)
+ */
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_low); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 132, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_13 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_13 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 132, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_high); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 132, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_12 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_12 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 132, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+
+    /* "pybgs.pyx":133
+ * 	    	image.shape[1], image.shape[0],
+ * 	    	params['low'], params['high'],
+ * 	    	params['alpha'], params['max_modes'],params['channels'],params['bg_threshold'],params['variance'],params['min_variance'],params['variance_factor'])             # <<<<<<<<<<<<<<
+ *             self.bg.Initalize(grimson_gmm_params)
+ * 
+ */
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_alpha); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_11 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_11 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_max_modes); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_10 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_10 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_channels); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_8 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_bg_threshold); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_9 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_variance); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_4 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_4 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_min_variance); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_15 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_15 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_t_1 = PyObject_GetItem(__pyx_v_params, __pyx_n_s_variance_factor); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_16 = __pyx_PyFloat_AsFloat(__pyx_t_1); if (unlikely((__pyx_t_16 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 133, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+
+    /* "pybgs.pyx":130
+ *         else:
+ *             self.bg = new GrimsonGMM()
+ *             grimson_gmm_params = CreateGrimsonGMMParams(             # <<<<<<<<<<<<<<
+ * 	    	image.shape[1], image.shape[0],
+ * 	    	params['low'], params['high'],
+ */
+    __pyx_v_grimson_gmm_params = CreateGrimsonGMMParams((__pyx_v_image.shape[1]), (__pyx_v_image.shape[0]), __pyx_t_13, __pyx_t_12, __pyx_t_11, __pyx_t_10, __pyx_t_8, __pyx_t_9, __pyx_t_4, __pyx_t_15, __pyx_t_16);
+
+    /* "pybgs.pyx":134
+ * 	    	params['low'], params['high'],
+ * 	    	params['alpha'], params['max_modes'],params['channels'],params['bg_threshold'],params['variance'],params['min_variance'],params['variance_factor'])
+ *             self.bg.Initalize(grimson_gmm_params)             # <<<<<<<<<<<<<<
+ * 
+ *         cdef CvSize size
+ */
+    __pyx_v_self->bg->Initalize(__pyx_v_grimson_gmm_params);
+  }
+  __pyx_L3:;
+
+  /* "pybgs.pyx":137
+ * 
+ *         cdef CvSize size
+ *         size.width = image.shape[1]             # <<<<<<<<<<<<<<
+ *         size.height = image.shape[0]
+ *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
+ */
+  __pyx_v_size.width = (__pyx_v_image.shape[1]);
+
+  /* "pybgs.pyx":138
+ *         cdef CvSize size
+ *         size.width = image.shape[1]
+ *         size.height = image.shape[0]             # <<<<<<<<<<<<<<
+ *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
+ *         self.ipldata = cvCreateImageHeader(size, IPL_DEPTH_32F, data.shape[2])
+ */
+  __pyx_v_size.height = (__pyx_v_image.shape[0]);
+
+  /* "pybgs.pyx":139
+ *         size.width = image.shape[1]
+ *         size.height = image.shape[0]
+ *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])             # <<<<<<<<<<<<<<
+ *         self.ipldata = cvCreateImageHeader(size, IPL_DEPTH_32F, data.shape[2])
+ *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
+ */
+  __pyx_v_self->iplimage = cvCreateImageHeader(__pyx_v_size, IPL_DEPTH_32F, (__pyx_v_image.shape[2]));
+
+  /* "pybgs.pyx":140
+ *         size.height = image.shape[0]
+ *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
+ *         self.ipldata = cvCreateImageHeader(size, IPL_DEPTH_32F, data.shape[2])             # <<<<<<<<<<<<<<
+ *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
+ *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
+ */
+  __pyx_v_self->ipldata = cvCreateImageHeader(__pyx_v_size, IPL_DEPTH_32F, (__pyx_v_data.shape[2]));
+
+  /* "pybgs.pyx":141
+ *         self.iplimage = cvCreateImageHeader(size, IPL_DEPTH_32F, image.shape[2])
+ *         self.ipldata = cvCreateImageHeader(size, IPL_DEPTH_32F, data.shape[2])
+ *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)             # <<<<<<<<<<<<<<
+ *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
+ * 
+ */
+  __pyx_v_self->low_mask_iplimage = cvCreateImageHeader(__pyx_v_size, IPL_DEPTH_8U, 1);
+
+  /* "pybgs.pyx":142
+ *         self.ipldata = cvCreateImageHeader(size, IPL_DEPTH_32F, data.shape[2])
+ *         self.low_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
+ *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)             # <<<<<<<<<<<<<<
+ * 
+ *         set_image_data(&self.image, self.iplimage,
+ */
+  __pyx_v_self->high_mask_iplimage = cvCreateImageHeader(__pyx_v_size, IPL_DEPTH_8U, 1);
+
+  /* "pybgs.pyx":145
+ * 
+ *         set_image_data(&self.image, self.iplimage,
+ *                        &image[0, 0, 0], image.strides[0])             # <<<<<<<<<<<<<<
+ * 
+ *         set_image_data(&self.data, self.ipldata,
+ */
+  __pyx_t_17 = 0;
+  __pyx_t_18 = 0;
+  __pyx_t_19 = 0;
+  __pyx_t_8 = -1;
+  if (__pyx_t_17 < 0) {
+    __pyx_t_17 += __pyx_v_image.shape[0];
+    if (unlikely(__pyx_t_17 < 0)) __pyx_t_8 = 0;
+  } else if (unlikely(__pyx_t_17 >= __pyx_v_image.shape[0])) __pyx_t_8 = 0;
+  if (__pyx_t_18 < 0) {
+    __pyx_t_18 += __pyx_v_image.shape[1];
+    if (unlikely(__pyx_t_18 < 0)) __pyx_t_8 = 1;
+  } else if (unlikely(__pyx_t_18 >= __pyx_v_image.shape[1])) __pyx_t_8 = 1;
+  if (__pyx_t_19 < 0) {
+    __pyx_t_19 += __pyx_v_image.shape[2];
+    if (unlikely(__pyx_t_19 < 0)) __pyx_t_8 = 2;
+  } else if (unlikely(__pyx_t_19 >= __pyx_v_image.shape[2])) __pyx_t_8 = 2;
+  if (unlikely(__pyx_t_8 != -1)) {
+    __Pyx_RaiseBufferIndexError(__pyx_t_8);
+    __PYX_ERR(0, 145, __pyx_L1_error)
+  }
+
+  /* "pybgs.pyx":144
+ *         self.high_mask_iplimage = cvCreateImageHeader(size, IPL_DEPTH_8U, 1)
+ * 
+ *         set_image_data(&self.image, self.iplimage,             # <<<<<<<<<<<<<<
+ *                        &image[0, 0, 0], image.strides[0])
+ * 
+ */
+  set_image_data((&__pyx_v_self->image), __pyx_v_self->iplimage, (&(*((__pyx_t_5numpy_float32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_image.data + __pyx_t_17 * __pyx_v_image.strides[0]) ) + __pyx_t_18 * __pyx_v_image.strides[1]) ) + __pyx_t_19 * __pyx_v_image.strides[2]) )))), (__pyx_v_image.strides[0]));
+
+  /* "pybgs.pyx":148
+ * 
+ *         set_image_data(&self.data, self.ipldata,
+ *                        &data[0, 0, 0], data.strides[0])             # <<<<<<<<<<<<<<
+ *         self.bg.InitModel(self.data)
+ * 
+ */
+  __pyx_t_20 = 0;
+  __pyx_t_21 = 0;
+  __pyx_t_22 = 0;
+  __pyx_t_8 = -1;
+  if (__pyx_t_20 < 0) {
+    __pyx_t_20 += __pyx_v_data.shape[0];
+    if (unlikely(__pyx_t_20 < 0)) __pyx_t_8 = 0;
+  } else if (unlikely(__pyx_t_20 >= __pyx_v_data.shape[0])) __pyx_t_8 = 0;
+  if (__pyx_t_21 < 0) {
+    __pyx_t_21 += __pyx_v_data.shape[1];
+    if (unlikely(__pyx_t_21 < 0)) __pyx_t_8 = 1;
+  } else if (unlikely(__pyx_t_21 >= __pyx_v_data.shape[1])) __pyx_t_8 = 1;
+  if (__pyx_t_22 < 0) {
+    __pyx_t_22 += __pyx_v_data.shape[2];
+    if (unlikely(__pyx_t_22 < 0)) __pyx_t_8 = 2;
+  } else if (unlikely(__pyx_t_22 >= __pyx_v_data.shape[2])) __pyx_t_8 = 2;
+  if (unlikely(__pyx_t_8 != -1)) {
+    __Pyx_RaiseBufferIndexError(__pyx_t_8);
+    __PYX_ERR(0, 148, __pyx_L1_error)
+  }
+
+  /* "pybgs.pyx":147
+ *                        &image[0, 0, 0], image.strides[0])
+ * 
+ *         set_image_data(&self.data, self.ipldata,             # <<<<<<<<<<<<<<
+ *                        &data[0, 0, 0], data.strides[0])
+ *         self.bg.InitModel(self.data)
+ */
+  set_image_data((&__pyx_v_self->data), __pyx_v_self->ipldata, (&(*((__pyx_t_5numpy_float32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_data.data + __pyx_t_20 * __pyx_v_data.strides[0]) ) + __pyx_t_21 * __pyx_v_data.strides[1]) ) + __pyx_t_22 * __pyx_v_data.strides[2]) )))), (__pyx_v_data.strides[0]));
+
+  /* "pybgs.pyx":149
+ *         set_image_data(&self.data, self.ipldata,
+ *                        &data[0, 0, 0], data.strides[0])
+ *         self.bg.InitModel(self.data)             # <<<<<<<<<<<<<<
+ * 
+ *     def subtract(self, frame_num, np.float32_t[:, :, :] data, np.float32_t[:, :, :] image,
+ */
+  __pyx_v_self->bg->InitModel(__pyx_v_self->data);
+
+  /* "pybgs.pyx":120
+ *         del self.bg
+ * 
+ *     def init_model(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image, params):             # <<<<<<<<<<<<<<
+ *         if(params['algorithm'] == 'FTSG'):
+ *             self.bg = new FTSG()
+ */
+
+  /* function exit code */
+  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.init_model", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __PYX_XDEC_MEMVIEW(&__pyx_v_data, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_v_image, 1);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "pybgs.pyx":151
+ *         self.bg.InitModel(self.data)
+ * 
+ *     def subtract(self, frame_num, np.float32_t[:, :, :] data, np.float32_t[:, :, :] image,             # <<<<<<<<<<<<<<
+ *                  np.uint8_t[:, :] low_threshold_mask,
+ *                  np.uint8_t[:, :] high_threshold_mask):
+ */
+
+/* Python wrapper */
+static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_7subtract(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyObject *__pyx_pw_5pybgs_21BackgroundSubtraction_7subtract(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+  PyObject *__pyx_v_frame_num = 0;
+  __Pyx_memviewslice __pyx_v_data = { 0, 0, { 0 }, { 0 }, { 0 } };
+  __Pyx_memviewslice __pyx_v_image = { 0, 0, { 0 }, { 0 }, { 0 } };
+  __Pyx_memviewslice __pyx_v_low_threshold_mask = { 0, 0, { 0 }, { 0 }, { 0 } };
+  __Pyx_memviewslice __pyx_v_high_threshold_mask = { 0, 0, { 0 }, { 0 }, { 0 } };
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("subtract (wrapper)", 0);
+  {
+    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_frame_num,&__pyx_n_s_data,&__pyx_n_s_image,&__pyx_n_s_low_threshold_mask,&__pyx_n_s_high_threshold_mask,0};
+    PyObject* values[5] = {0,0,0,0,0};
+    if (unlikely(__pyx_kwds)) {
+      Py_ssize_t kw_args;
+      const Py_ssize_t pos_args = PyTuple_GET_SIZE(__pyx_args);
+      switch (pos_args) {
+        case  5: values[4] = PyTuple_GET_ITEM(__pyx_args, 4);
+        case  4: values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
+        case  3: values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
+        case  2: values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
+        case  1: values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
+        case  0: break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      kw_args = PyDict_Size(__pyx_kwds);
+      switch (pos_args) {
+        case  0:
+        if (likely((values[0] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_frame_num)) != 0)) kw_args--;
+        else goto __pyx_L5_argtuple_error;
+        case  1:
+        if (likely((values[1] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_data)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("subtract", 1, 5, 5, 1); __PYX_ERR(0, 151, __pyx_L3_error)
+        }
+        case  2:
+        if (likely((values[2] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_image)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("subtract", 1, 5, 5, 2); __PYX_ERR(0, 151, __pyx_L3_error)
+        }
+        case  3:
+        if (likely((values[3] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_low_threshold_mask)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("subtract", 1, 5, 5, 3); __PYX_ERR(0, 151, __pyx_L3_error)
+        }
+        case  4:
+        if (likely((values[4] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_high_threshold_mask)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("subtract", 1, 5, 5, 4); __PYX_ERR(0, 151, __pyx_L3_error)
+        }
+      }
+      if (unlikely(kw_args > 0)) {
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "subtract") < 0)) __PYX_ERR(0, 151, __pyx_L3_error)
+      }
+    } else if (PyTuple_GET_SIZE(__pyx_args) != 5) {
+      goto __pyx_L5_argtuple_error;
+    } else {
+      values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
+      values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
+      values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
+      values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
+      values[4] = PyTuple_GET_ITEM(__pyx_args, 4);
+    }
+    __pyx_v_frame_num = values[0];
+    __pyx_v_data = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_float32_t(values[1]); if (unlikely(!__pyx_v_data.memview)) __PYX_ERR(0, 151, __pyx_L3_error)
+    __pyx_v_image = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_float32_t(values[2]); if (unlikely(!__pyx_v_image.memview)) __PYX_ERR(0, 151, __pyx_L3_error)
+    __pyx_v_low_threshold_mask = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint8_t(values[3]); if (unlikely(!__pyx_v_low_threshold_mask.memview)) __PYX_ERR(0, 152, __pyx_L3_error)
+    __pyx_v_high_threshold_mask = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint8_t(values[4]); if (unlikely(!__pyx_v_high_threshold_mask.memview)) __PYX_ERR(0, 153, __pyx_L3_error)
+  }
+  goto __pyx_L4_argument_unpacking_done;
+  __pyx_L5_argtuple_error:;
+  __Pyx_RaiseArgtupleInvalid("subtract", 1, 5, 5, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 151, __pyx_L3_error)
+  __pyx_L3_error:;
+  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.subtract", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_RefNannyFinishContext();
+  return NULL;
+  __pyx_L4_argument_unpacking_done:;
+  __pyx_r = __pyx_pf_5pybgs_21BackgroundSubtraction_6subtract(((struct __pyx_obj_5pybgs_BackgroundSubtraction *)__pyx_v_self), __pyx_v_frame_num, __pyx_v_data, __pyx_v_image, __pyx_v_low_threshold_mask, __pyx_v_high_threshold_mask);
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_6subtract(struct __pyx_obj_5pybgs_BackgroundSubtraction *__pyx_v_self, PyObject *__pyx_v_frame_num, __Pyx_memviewslice __pyx_v_data, __Pyx_memviewslice __pyx_v_image, __Pyx_memviewslice __pyx_v_low_threshold_mask, __Pyx_memviewslice __pyx_v_high_threshold_mask) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   Py_ssize_t __pyx_t_1;
@@ -2962,14 +2992,19 @@ static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_8update(struct __pyx_ob
   int __pyx_t_4;
   Py_ssize_t __pyx_t_5;
   Py_ssize_t __pyx_t_6;
-  __Pyx_RefNannySetupContext("update", 0);
+  Py_ssize_t __pyx_t_7;
+  Py_ssize_t __pyx_t_8;
+  Py_ssize_t __pyx_t_9;
+  Py_ssize_t __pyx_t_10;
+  Py_ssize_t __pyx_t_11;
+  __Pyx_RefNannySetupContext("subtract", 0);
 
-  /* "pybgs.pyx":138
- *                np.uint8_t[:, :] low_threshold_mask):
+  /* "pybgs.pyx":156
+ * 
  *         set_image_data(<ImageBase *>(&self.image), self.iplimage,
  *                        &image[0, 0, 0], image.strides[0])             # <<<<<<<<<<<<<<
- *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
- *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
+ *         set_image_data(<ImageBase *>(&self.data), self.ipldata,
+ *                        &data[0, 0, 0], data.strides[0])
  */
   __pyx_t_1 = 0;
   __pyx_t_2 = 0;
@@ -2989,76 +3024,147 @@ static PyObject *__pyx_pf_5pybgs_21BackgroundSubtraction_8update(struct __pyx_ob
   } else if (unlikely(__pyx_t_3 >= __pyx_v_image.shape[2])) __pyx_t_4 = 2;
   if (unlikely(__pyx_t_4 != -1)) {
     __Pyx_RaiseBufferIndexError(__pyx_t_4);
-    __PYX_ERR(0, 138, __pyx_L1_error)
+    __PYX_ERR(0, 156, __pyx_L1_error)
   }
 
-  /* "pybgs.pyx":137
- *     def update(self, frame_num, np.float32_t[:, :, :] image,
- *                np.uint8_t[:, :] low_threshold_mask):
+  /* "pybgs.pyx":155
+ *                  np.uint8_t[:, :] high_threshold_mask):
+ * 
  *         set_image_data(<ImageBase *>(&self.image), self.iplimage,             # <<<<<<<<<<<<<<
  *                        &image[0, 0, 0], image.strides[0])
- *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
+ *         set_image_data(<ImageBase *>(&self.data), self.ipldata,
  */
   set_image_data(((ImageBase *)(&__pyx_v_self->image)), __pyx_v_self->iplimage, (&(*((__pyx_t_5numpy_float32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_image.data + __pyx_t_1 * __pyx_v_image.strides[0]) ) + __pyx_t_2 * __pyx_v_image.strides[1]) ) + __pyx_t_3 * __pyx_v_image.strides[2]) )))), (__pyx_v_image.strides[0]));
 
-  /* "pybgs.pyx":140
+  /* "pybgs.pyx":158
  *                        &image[0, 0, 0], image.strides[0])
+ *         set_image_data(<ImageBase *>(&self.data), self.ipldata,
+ *                        &data[0, 0, 0], data.strides[0])             # <<<<<<<<<<<<<<
  *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
- *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])             # <<<<<<<<<<<<<<
- *         self.bg.Update(frame_num, self.image, self.low_mask_image)
- * 
+ *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
  */
   __pyx_t_5 = 0;
   __pyx_t_6 = 0;
+  __pyx_t_7 = 0;
   __pyx_t_4 = -1;
   if (__pyx_t_5 < 0) {
-    __pyx_t_5 += __pyx_v_low_threshold_mask.shape[0];
+    __pyx_t_5 += __pyx_v_data.shape[0];
     if (unlikely(__pyx_t_5 < 0)) __pyx_t_4 = 0;
-  } else if (unlikely(__pyx_t_5 >= __pyx_v_low_threshold_mask.shape[0])) __pyx_t_4 = 0;
+  } else if (unlikely(__pyx_t_5 >= __pyx_v_data.shape[0])) __pyx_t_4 = 0;
   if (__pyx_t_6 < 0) {
-    __pyx_t_6 += __pyx_v_low_threshold_mask.shape[1];
+    __pyx_t_6 += __pyx_v_data.shape[1];
     if (unlikely(__pyx_t_6 < 0)) __pyx_t_4 = 1;
-  } else if (unlikely(__pyx_t_6 >= __pyx_v_low_threshold_mask.shape[1])) __pyx_t_4 = 1;
+  } else if (unlikely(__pyx_t_6 >= __pyx_v_data.shape[1])) __pyx_t_4 = 1;
+  if (__pyx_t_7 < 0) {
+    __pyx_t_7 += __pyx_v_data.shape[2];
+    if (unlikely(__pyx_t_7 < 0)) __pyx_t_4 = 2;
+  } else if (unlikely(__pyx_t_7 >= __pyx_v_data.shape[2])) __pyx_t_4 = 2;
   if (unlikely(__pyx_t_4 != -1)) {
     __Pyx_RaiseBufferIndexError(__pyx_t_4);
-    __PYX_ERR(0, 140, __pyx_L1_error)
+    __PYX_ERR(0, 158, __pyx_L1_error)
   }
 
-  /* "pybgs.pyx":139
+  /* "pybgs.pyx":157
  *         set_image_data(<ImageBase *>(&self.image), self.iplimage,
  *                        &image[0, 0, 0], image.strides[0])
+ *         set_image_data(<ImageBase *>(&self.data), self.ipldata,             # <<<<<<<<<<<<<<
+ *                        &data[0, 0, 0], data.strides[0])
+ *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
+ */
+  set_image_data(((ImageBase *)(&__pyx_v_self->data)), __pyx_v_self->ipldata, (&(*((__pyx_t_5numpy_float32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_data.data + __pyx_t_5 * __pyx_v_data.strides[0]) ) + __pyx_t_6 * __pyx_v_data.strides[1]) ) + __pyx_t_7 * __pyx_v_data.strides[2]) )))), (__pyx_v_data.strides[0]));
+
+  /* "pybgs.pyx":160
+ *                        &data[0, 0, 0], data.strides[0])
+ *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
+ *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])             # <<<<<<<<<<<<<<
+ *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
+ *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])
+ */
+  __pyx_t_8 = 0;
+  __pyx_t_9 = 0;
+  __pyx_t_4 = -1;
+  if (__pyx_t_8 < 0) {
+    __pyx_t_8 += __pyx_v_low_threshold_mask.shape[0];
+    if (unlikely(__pyx_t_8 < 0)) __pyx_t_4 = 0;
+  } else if (unlikely(__pyx_t_8 >= __pyx_v_low_threshold_mask.shape[0])) __pyx_t_4 = 0;
+  if (__pyx_t_9 < 0) {
+    __pyx_t_9 += __pyx_v_low_threshold_mask.shape[1];
+    if (unlikely(__pyx_t_9 < 0)) __pyx_t_4 = 1;
+  } else if (unlikely(__pyx_t_9 >= __pyx_v_low_threshold_mask.shape[1])) __pyx_t_4 = 1;
+  if (unlikely(__pyx_t_4 != -1)) {
+    __Pyx_RaiseBufferIndexError(__pyx_t_4);
+    __PYX_ERR(0, 160, __pyx_L1_error)
+  }
+
+  /* "pybgs.pyx":159
+ *         set_image_data(<ImageBase *>(&self.data), self.ipldata,
+ *                        &data[0, 0, 0], data.strides[0])
  *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,             # <<<<<<<<<<<<<<
  *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
- *         self.bg.Update(frame_num, self.image, self.low_mask_image)
+ *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
  */
-  set_image_data(((ImageBase *)(&__pyx_v_self->low_mask_image)), __pyx_v_self->low_mask_iplimage, (&(*((__pyx_t_5numpy_uint8_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_low_threshold_mask.data + __pyx_t_5 * __pyx_v_low_threshold_mask.strides[0]) ) + __pyx_t_6 * __pyx_v_low_threshold_mask.strides[1]) )))), (__pyx_v_low_threshold_mask.strides[0]));
+  set_image_data(((ImageBase *)(&__pyx_v_self->low_mask_image)), __pyx_v_self->low_mask_iplimage, (&(*((__pyx_t_5numpy_uint8_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_low_threshold_mask.data + __pyx_t_8 * __pyx_v_low_threshold_mask.strides[0]) ) + __pyx_t_9 * __pyx_v_low_threshold_mask.strides[1]) )))), (__pyx_v_low_threshold_mask.strides[0]));
 
-  /* "pybgs.pyx":141
+  /* "pybgs.pyx":162
+ *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
+ *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
+ *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])             # <<<<<<<<<<<<<<
+ *         self.bg.Subtract(frame_num, self.data, self.image, self.low_mask_image, self.high_mask_image)
+ * 
+ */
+  __pyx_t_10 = 0;
+  __pyx_t_11 = 0;
+  __pyx_t_4 = -1;
+  if (__pyx_t_10 < 0) {
+    __pyx_t_10 += __pyx_v_high_threshold_mask.shape[0];
+    if (unlikely(__pyx_t_10 < 0)) __pyx_t_4 = 0;
+  } else if (unlikely(__pyx_t_10 >= __pyx_v_high_threshold_mask.shape[0])) __pyx_t_4 = 0;
+  if (__pyx_t_11 < 0) {
+    __pyx_t_11 += __pyx_v_high_threshold_mask.shape[1];
+    if (unlikely(__pyx_t_11 < 0)) __pyx_t_4 = 1;
+  } else if (unlikely(__pyx_t_11 >= __pyx_v_high_threshold_mask.shape[1])) __pyx_t_4 = 1;
+  if (unlikely(__pyx_t_4 != -1)) {
+    __Pyx_RaiseBufferIndexError(__pyx_t_4);
+    __PYX_ERR(0, 162, __pyx_L1_error)
+  }
+
+  /* "pybgs.pyx":161
  *         set_image_data(<ImageBase *>(&self.low_mask_image), self.low_mask_iplimage,
  *                        &low_threshold_mask[0, 0], low_threshold_mask.strides[0])
- *         self.bg.Update(frame_num, self.image, self.low_mask_image)             # <<<<<<<<<<<<<<
+ *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,             # <<<<<<<<<<<<<<
+ *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])
+ *         self.bg.Subtract(frame_num, self.data, self.image, self.low_mask_image, self.high_mask_image)
+ */
+  set_image_data(((ImageBase *)(&__pyx_v_self->high_mask_image)), __pyx_v_self->high_mask_iplimage, (&(*((__pyx_t_5numpy_uint8_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_high_threshold_mask.data + __pyx_t_10 * __pyx_v_high_threshold_mask.strides[0]) ) + __pyx_t_11 * __pyx_v_high_threshold_mask.strides[1]) )))), (__pyx_v_high_threshold_mask.strides[0]));
+
+  /* "pybgs.pyx":163
+ *         set_image_data(<ImageBase *>(&self.high_mask_image), self.high_mask_iplimage,
+ *                        &high_threshold_mask[0, 0], high_threshold_mask.strides[0])
+ *         self.bg.Subtract(frame_num, self.data, self.image, self.low_mask_image, self.high_mask_image)             # <<<<<<<<<<<<<<
  * 
  */
-  __pyx_t_4 = __Pyx_PyInt_As_int(__pyx_v_frame_num); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 141, __pyx_L1_error)
-  __pyx_v_self->bg->Update(__pyx_t_4, __pyx_v_self->image, __pyx_v_self->low_mask_image);
+  __pyx_t_4 = __Pyx_PyInt_As_int(__pyx_v_frame_num); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 163, __pyx_L1_error)
+  __pyx_v_self->bg->Subtract(__pyx_t_4, __pyx_v_self->data, __pyx_v_self->image, __pyx_v_self->low_mask_image, __pyx_v_self->high_mask_image);
 
-  /* "pybgs.pyx":135
- *         self.bg.Subtract(frame_num, self.image, self.low_mask_image, self.high_mask_image)
+  /* "pybgs.pyx":151
+ *         self.bg.InitModel(self.data)
  * 
- *     def update(self, frame_num, np.float32_t[:, :, :] image,             # <<<<<<<<<<<<<<
- *                np.uint8_t[:, :] low_threshold_mask):
- *         set_image_data(<ImageBase *>(&self.image), self.iplimage,
+ *     def subtract(self, frame_num, np.float32_t[:, :, :] data, np.float32_t[:, :, :] image,             # <<<<<<<<<<<<<<
+ *                  np.uint8_t[:, :] low_threshold_mask,
+ *                  np.uint8_t[:, :] high_threshold_mask):
  */
 
   /* function exit code */
   __pyx_r = Py_None; __Pyx_INCREF(Py_None);
   goto __pyx_L0;
   __pyx_L1_error:;
-  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.update", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_AddTraceback("pybgs.BackgroundSubtraction.subtract", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
+  __PYX_XDEC_MEMVIEW(&__pyx_v_data, 1);
   __PYX_XDEC_MEMVIEW(&__pyx_v_image, 1);
   __PYX_XDEC_MEMVIEW(&__pyx_v_low_threshold_mask, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_v_high_threshold_mask, 1);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
@@ -17245,6 +17351,7 @@ static PyObject *__pyx_tp_new_5pybgs_BackgroundSubtraction(PyTypeObject *t, CYTH
   if (unlikely(!o)) return 0;
   p = ((struct __pyx_obj_5pybgs_BackgroundSubtraction *)o);
   new((void*)&(p->image)) Image();
+  new((void*)&(p->data)) Image();
   new((void*)&(p->low_mask_image)) BwImage();
   new((void*)&(p->high_mask_image)) BwImage();
   return o;
@@ -17266,6 +17373,7 @@ static void __pyx_tp_dealloc_5pybgs_BackgroundSubtraction(PyObject *o) {
     PyErr_Restore(etype, eval, etb);
   }
   __Pyx_call_destructor(p->image);
+  __Pyx_call_destructor(p->data);
   __Pyx_call_destructor(p->low_mask_image);
   __Pyx_call_destructor(p->high_mask_image);
   (*Py_TYPE(o)->tp_free)(o);
@@ -17274,7 +17382,6 @@ static void __pyx_tp_dealloc_5pybgs_BackgroundSubtraction(PyObject *o) {
 static PyMethodDef __pyx_methods_5pybgs_BackgroundSubtraction[] = {
   {"init_model", (PyCFunction)__pyx_pw_5pybgs_21BackgroundSubtraction_5init_model, METH_VARARGS|METH_KEYWORDS, 0},
   {"subtract", (PyCFunction)__pyx_pw_5pybgs_21BackgroundSubtraction_7subtract, METH_VARARGS|METH_KEYWORDS, 0},
-  {"update", (PyCFunction)__pyx_pw_5pybgs_21BackgroundSubtraction_9update, METH_VARARGS|METH_KEYWORDS, 0},
   {0, 0, 0, 0}
 };
 
@@ -18028,6 +18135,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_Cannot_index_with_type_s, __pyx_k_Cannot_index_with_type_s, sizeof(__pyx_k_Cannot_index_with_type_s), 0, 0, 1, 0},
   {&__pyx_n_s_Ellipsis, __pyx_k_Ellipsis, sizeof(__pyx_k_Ellipsis), 0, 0, 1, 1},
   {&__pyx_kp_s_Empty_shape_tuple_for_cython_arr, __pyx_k_Empty_shape_tuple_for_cython_arr, sizeof(__pyx_k_Empty_shape_tuple_for_cython_arr), 0, 0, 1, 0},
+  {&__pyx_n_s_FTSG, __pyx_k_FTSG, sizeof(__pyx_k_FTSG), 0, 0, 1, 1},
   {&__pyx_kp_u_Format_string_allocated_too_shor, __pyx_k_Format_string_allocated_too_shor, sizeof(__pyx_k_Format_string_allocated_too_shor), 0, 1, 0, 0},
   {&__pyx_kp_u_Format_string_allocated_too_shor_2, __pyx_k_Format_string_allocated_too_shor_2, sizeof(__pyx_k_Format_string_allocated_too_shor_2), 0, 1, 0, 0},
   {&__pyx_n_s_ImportError, __pyx_k_ImportError, sizeof(__pyx_k_ImportError), 0, 0, 1, 1},
@@ -18045,9 +18153,11 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_TypeError, __pyx_k_TypeError, sizeof(__pyx_k_TypeError), 0, 0, 1, 1},
   {&__pyx_kp_s_Unable_to_convert_item_to_object, __pyx_k_Unable_to_convert_item_to_object, sizeof(__pyx_k_Unable_to_convert_item_to_object), 0, 0, 1, 0},
   {&__pyx_n_s_ValueError, __pyx_k_ValueError, sizeof(__pyx_k_ValueError), 0, 0, 1, 1},
+  {&__pyx_n_s_algorithm, __pyx_k_algorithm, sizeof(__pyx_k_algorithm), 0, 0, 1, 1},
   {&__pyx_n_s_allocate_buffer, __pyx_k_allocate_buffer, sizeof(__pyx_k_allocate_buffer), 0, 0, 1, 1},
   {&__pyx_n_s_alpha, __pyx_k_alpha, sizeof(__pyx_k_alpha), 0, 0, 1, 1},
   {&__pyx_n_s_base, __pyx_k_base, sizeof(__pyx_k_base), 0, 0, 1, 1},
+  {&__pyx_n_s_bgAlpha, __pyx_k_bgAlpha, sizeof(__pyx_k_bgAlpha), 0, 0, 1, 1},
   {&__pyx_n_s_bg_threshold, __pyx_k_bg_threshold, sizeof(__pyx_k_bg_threshold), 0, 0, 1, 1},
   {&__pyx_n_s_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 0, 1, 1},
   {&__pyx_n_u_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 1, 0, 1},
@@ -18055,10 +18165,12 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_class, __pyx_k_class, sizeof(__pyx_k_class), 0, 0, 1, 1},
   {&__pyx_kp_s_contiguous_and_direct, __pyx_k_contiguous_and_direct, sizeof(__pyx_k_contiguous_and_direct), 0, 0, 1, 0},
   {&__pyx_kp_s_contiguous_and_indirect, __pyx_k_contiguous_and_indirect, sizeof(__pyx_k_contiguous_and_indirect), 0, 0, 1, 0},
+  {&__pyx_n_s_data, __pyx_k_data, sizeof(__pyx_k_data), 0, 0, 1, 1},
   {&__pyx_n_s_dtype_is_object, __pyx_k_dtype_is_object, sizeof(__pyx_k_dtype_is_object), 0, 0, 1, 1},
   {&__pyx_n_s_encode, __pyx_k_encode, sizeof(__pyx_k_encode), 0, 0, 1, 1},
   {&__pyx_n_s_enumerate, __pyx_k_enumerate, sizeof(__pyx_k_enumerate), 0, 0, 1, 1},
   {&__pyx_n_s_error, __pyx_k_error, sizeof(__pyx_k_error), 0, 0, 1, 1},
+  {&__pyx_n_s_fgAlpha, __pyx_k_fgAlpha, sizeof(__pyx_k_fgAlpha), 0, 0, 1, 1},
   {&__pyx_n_s_flags, __pyx_k_flags, sizeof(__pyx_k_flags), 0, 0, 1, 1},
   {&__pyx_n_s_format, __pyx_k_format, sizeof(__pyx_k_format), 0, 0, 1, 1},
   {&__pyx_n_s_fortran, __pyx_k_fortran, sizeof(__pyx_k_fortran), 0, 0, 1, 1},
@@ -18079,6 +18191,10 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_memview, __pyx_k_memview, sizeof(__pyx_k_memview), 0, 0, 1, 1},
   {&__pyx_n_s_min_variance, __pyx_k_min_variance, sizeof(__pyx_k_min_variance), 0, 0, 1, 1},
   {&__pyx_n_s_mode, __pyx_k_mode, sizeof(__pyx_k_mode), 0, 0, 1, 1},
+  {&__pyx_n_s_nAs, __pyx_k_nAs, sizeof(__pyx_k_nAs), 0, 0, 1, 1},
+  {&__pyx_n_s_nAt, __pyx_k_nAt, sizeof(__pyx_k_nAt), 0, 0, 1, 1},
+  {&__pyx_n_s_nDs, __pyx_k_nDs, sizeof(__pyx_k_nDs), 0, 0, 1, 1},
+  {&__pyx_n_s_nDt, __pyx_k_nDt, sizeof(__pyx_k_nDt), 0, 0, 1, 1},
   {&__pyx_n_s_name, __pyx_k_name, sizeof(__pyx_k_name), 0, 0, 1, 1},
   {&__pyx_n_s_name_2, __pyx_k_name_2, sizeof(__pyx_k_name_2), 0, 0, 1, 1},
   {&__pyx_kp_u_ndarray_is_not_C_contiguous, __pyx_k_ndarray_is_not_C_contiguous, sizeof(__pyx_k_ndarray_is_not_C_contiguous), 0, 1, 0, 0},
@@ -18103,7 +18219,11 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_strided_and_direct_or_indirect, __pyx_k_strided_and_direct_or_indirect, sizeof(__pyx_k_strided_and_direct_or_indirect), 0, 0, 1, 0},
   {&__pyx_kp_s_strided_and_indirect, __pyx_k_strided_and_indirect, sizeof(__pyx_k_strided_and_indirect), 0, 0, 1, 0},
   {&__pyx_n_s_struct, __pyx_k_struct, sizeof(__pyx_k_struct), 0, 0, 1, 1},
+  {&__pyx_n_s_tb, __pyx_k_tb, sizeof(__pyx_k_tb), 0, 0, 1, 1},
   {&__pyx_n_s_test, __pyx_k_test, sizeof(__pyx_k_test), 0, 0, 1, 1},
+  {&__pyx_n_s_tf, __pyx_k_tf, sizeof(__pyx_k_tf), 0, 0, 1, 1},
+  {&__pyx_n_s_th, __pyx_k_th, sizeof(__pyx_k_th), 0, 0, 1, 1},
+  {&__pyx_n_s_tl, __pyx_k_tl, sizeof(__pyx_k_tl), 0, 0, 1, 1},
   {&__pyx_kp_s_unable_to_allocate_array_data, __pyx_k_unable_to_allocate_array_data, sizeof(__pyx_k_unable_to_allocate_array_data), 0, 0, 1, 0},
   {&__pyx_kp_s_unable_to_allocate_shape_and_str, __pyx_k_unable_to_allocate_shape_and_str, sizeof(__pyx_k_unable_to_allocate_shape_and_str), 0, 0, 1, 0},
   {&__pyx_kp_u_unknown_dtype_code_in_numpy_pxd, __pyx_k_unknown_dtype_code_in_numpy_pxd, sizeof(__pyx_k_unknown_dtype_code_in_numpy_pxd), 0, 1, 0, 0},
@@ -18537,9 +18657,9 @@ PyMODINIT_FUNC PyInit_pybgs(void)
   /*--- Variable export code ---*/
   /*--- Function export code ---*/
   /*--- Type init code ---*/
-  if (PyType_Ready(&__pyx_type_5pybgs_BackgroundSubtraction) < 0) __PYX_ERR(0, 84, __pyx_L1_error)
+  if (PyType_Ready(&__pyx_type_5pybgs_BackgroundSubtraction) < 0) __PYX_ERR(0, 96, __pyx_L1_error)
   __pyx_type_5pybgs_BackgroundSubtraction.tp_print = 0;
-  if (PyObject_SetAttrString(__pyx_m, "BackgroundSubtraction", (PyObject *)&__pyx_type_5pybgs_BackgroundSubtraction) < 0) __PYX_ERR(0, 84, __pyx_L1_error)
+  if (PyObject_SetAttrString(__pyx_m, "BackgroundSubtraction", (PyObject *)&__pyx_type_5pybgs_BackgroundSubtraction) < 0) __PYX_ERR(0, 96, __pyx_L1_error)
   __pyx_ptype_5pybgs_BackgroundSubtraction = &__pyx_type_5pybgs_BackgroundSubtraction;
   __pyx_vtabptr_array = &__pyx_vtable_array;
   __pyx_vtable_array.get_memview = (PyObject *(*)(struct __pyx_array_obj *))__pyx_array_get_memview;
@@ -18591,31 +18711,31 @@ PyMODINIT_FUNC PyInit_pybgs(void)
   if (__Pyx_patch_abc() < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   #endif
 
-  /* "pybgs.pyx":5
- * # distutils: libraries = opencv_core opencv_highgui
+  /* "pybgs.pyx":7
+ * #defining NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
  * 
  * import numpy as np             # <<<<<<<<<<<<<<
  * cimport numpy as np
  * from cython.operator cimport dereference as deref
  */
-  __pyx_t_1 = __Pyx_Import(__pyx_n_s_numpy, 0, -1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 5, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_Import(__pyx_n_s_numpy, 0, -1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 7, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_np, __pyx_t_1) < 0) __PYX_ERR(0, 5, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_np, __pyx_t_1) < 0) __PYX_ERR(0, 7, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "pybgs.pyx":12
+  /* "pybgs.pyx":14
  * # Numpy must be initialized. When using numpy from C or Cython you must
  * # _always_ do that, or you will have segfaults
  * np.import_array()             # <<<<<<<<<<<<<<
  * 
  * 
  */
-  __pyx_t_2 = __pyx_f_5numpy_import_array(); if (unlikely(__pyx_t_2 == -1)) __PYX_ERR(0, 12, __pyx_L1_error)
+  __pyx_t_2 = __pyx_f_5numpy_import_array(); if (unlikely(__pyx_t_2 == -1)) __PYX_ERR(0, 14, __pyx_L1_error)
 
   /* "pybgs.pyx":1
  * # distutils: language = c++             # <<<<<<<<<<<<<<
- * # distutils: sources = Image.cpp GrimsonGMM.cpp
- * # distutils: libraries = opencv_core opencv_highgui
+ * # distutils: sources = FTSGAlgorithm.cpp tools.cpp FluxTensorMethod.cpp BackgroundGaussian.cpp ForegroundGaussian.cpp Pixel.cpp SplitGaussian.cpp Image.cpp GrimsonGMM.cpp FTSG.cpp
+ * # distutils: libraries = opencv_core opencv_highgui opencv_features2d opencv_imgproc opencv_photo opencv_superres opencv_ts
  */
   __pyx_t_1 = PyDict_New(); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -18985,6 +19105,128 @@ invalid_keyword:
     #endif
 bad:
     return -1;
+}
+
+/* BytesEquals */
+static CYTHON_INLINE int __Pyx_PyBytes_Equals(PyObject* s1, PyObject* s2, int equals) {
+#if CYTHON_COMPILING_IN_PYPY
+    return PyObject_RichCompareBool(s1, s2, equals);
+#else
+    if (s1 == s2) {
+        return (equals == Py_EQ);
+    } else if (PyBytes_CheckExact(s1) & PyBytes_CheckExact(s2)) {
+        const char *ps1, *ps2;
+        Py_ssize_t length = PyBytes_GET_SIZE(s1);
+        if (length != PyBytes_GET_SIZE(s2))
+            return (equals == Py_NE);
+        ps1 = PyBytes_AS_STRING(s1);
+        ps2 = PyBytes_AS_STRING(s2);
+        if (ps1[0] != ps2[0]) {
+            return (equals == Py_NE);
+        } else if (length == 1) {
+            return (equals == Py_EQ);
+        } else {
+            int result = memcmp(ps1, ps2, (size_t)length);
+            return (equals == Py_EQ) ? (result == 0) : (result != 0);
+        }
+    } else if ((s1 == Py_None) & PyBytes_CheckExact(s2)) {
+        return (equals == Py_NE);
+    } else if ((s2 == Py_None) & PyBytes_CheckExact(s1)) {
+        return (equals == Py_NE);
+    } else {
+        int result;
+        PyObject* py_result = PyObject_RichCompare(s1, s2, equals);
+        if (!py_result)
+            return -1;
+        result = __Pyx_PyObject_IsTrue(py_result);
+        Py_DECREF(py_result);
+        return result;
+    }
+#endif
+}
+
+/* UnicodeEquals */
+static CYTHON_INLINE int __Pyx_PyUnicode_Equals(PyObject* s1, PyObject* s2, int equals) {
+#if CYTHON_COMPILING_IN_PYPY
+    return PyObject_RichCompareBool(s1, s2, equals);
+#else
+#if PY_MAJOR_VERSION < 3
+    PyObject* owned_ref = NULL;
+#endif
+    int s1_is_unicode, s2_is_unicode;
+    if (s1 == s2) {
+        goto return_eq;
+    }
+    s1_is_unicode = PyUnicode_CheckExact(s1);
+    s2_is_unicode = PyUnicode_CheckExact(s2);
+#if PY_MAJOR_VERSION < 3
+    if ((s1_is_unicode & (!s2_is_unicode)) && PyString_CheckExact(s2)) {
+        owned_ref = PyUnicode_FromObject(s2);
+        if (unlikely(!owned_ref))
+            return -1;
+        s2 = owned_ref;
+        s2_is_unicode = 1;
+    } else if ((s2_is_unicode & (!s1_is_unicode)) && PyString_CheckExact(s1)) {
+        owned_ref = PyUnicode_FromObject(s1);
+        if (unlikely(!owned_ref))
+            return -1;
+        s1 = owned_ref;
+        s1_is_unicode = 1;
+    } else if (((!s2_is_unicode) & (!s1_is_unicode))) {
+        return __Pyx_PyBytes_Equals(s1, s2, equals);
+    }
+#endif
+    if (s1_is_unicode & s2_is_unicode) {
+        Py_ssize_t length;
+        int kind;
+        void *data1, *data2;
+        if (unlikely(__Pyx_PyUnicode_READY(s1) < 0) || unlikely(__Pyx_PyUnicode_READY(s2) < 0))
+            return -1;
+        length = __Pyx_PyUnicode_GET_LENGTH(s1);
+        if (length != __Pyx_PyUnicode_GET_LENGTH(s2)) {
+            goto return_ne;
+        }
+        kind = __Pyx_PyUnicode_KIND(s1);
+        if (kind != __Pyx_PyUnicode_KIND(s2)) {
+            goto return_ne;
+        }
+        data1 = __Pyx_PyUnicode_DATA(s1);
+        data2 = __Pyx_PyUnicode_DATA(s2);
+        if (__Pyx_PyUnicode_READ(kind, data1, 0) != __Pyx_PyUnicode_READ(kind, data2, 0)) {
+            goto return_ne;
+        } else if (length == 1) {
+            goto return_eq;
+        } else {
+            int result = memcmp(data1, data2, (size_t)(length * kind));
+            #if PY_MAJOR_VERSION < 3
+            Py_XDECREF(owned_ref);
+            #endif
+            return (equals == Py_EQ) ? (result == 0) : (result != 0);
+        }
+    } else if ((s1 == Py_None) & s2_is_unicode) {
+        goto return_ne;
+    } else if ((s2 == Py_None) & s1_is_unicode) {
+        goto return_ne;
+    } else {
+        int result;
+        PyObject* py_result = PyObject_RichCompare(s1, s2, equals);
+        if (!py_result)
+            return -1;
+        result = __Pyx_PyObject_IsTrue(py_result);
+        Py_DECREF(py_result);
+        return result;
+    }
+return_eq:
+    #if PY_MAJOR_VERSION < 3
+    Py_XDECREF(owned_ref);
+    #endif
+    return (equals == Py_EQ);
+return_ne:
+    #if PY_MAJOR_VERSION < 3
+    Py_XDECREF(owned_ref);
+    #endif
+    return (equals == Py_NE);
+#endif
 }
 
 /* BufferIndexError */
@@ -20050,128 +20292,6 @@ static CYTHON_INLINE int __Pyx_ArgTypeTest(PyObject *obj, PyTypeObject *type, in
     }
     __Pyx_RaiseArgumentTypeInvalid(name, obj, type);
     return 0;
-}
-
-/* BytesEquals */
-      static CYTHON_INLINE int __Pyx_PyBytes_Equals(PyObject* s1, PyObject* s2, int equals) {
-#if CYTHON_COMPILING_IN_PYPY
-    return PyObject_RichCompareBool(s1, s2, equals);
-#else
-    if (s1 == s2) {
-        return (equals == Py_EQ);
-    } else if (PyBytes_CheckExact(s1) & PyBytes_CheckExact(s2)) {
-        const char *ps1, *ps2;
-        Py_ssize_t length = PyBytes_GET_SIZE(s1);
-        if (length != PyBytes_GET_SIZE(s2))
-            return (equals == Py_NE);
-        ps1 = PyBytes_AS_STRING(s1);
-        ps2 = PyBytes_AS_STRING(s2);
-        if (ps1[0] != ps2[0]) {
-            return (equals == Py_NE);
-        } else if (length == 1) {
-            return (equals == Py_EQ);
-        } else {
-            int result = memcmp(ps1, ps2, (size_t)length);
-            return (equals == Py_EQ) ? (result == 0) : (result != 0);
-        }
-    } else if ((s1 == Py_None) & PyBytes_CheckExact(s2)) {
-        return (equals == Py_NE);
-    } else if ((s2 == Py_None) & PyBytes_CheckExact(s1)) {
-        return (equals == Py_NE);
-    } else {
-        int result;
-        PyObject* py_result = PyObject_RichCompare(s1, s2, equals);
-        if (!py_result)
-            return -1;
-        result = __Pyx_PyObject_IsTrue(py_result);
-        Py_DECREF(py_result);
-        return result;
-    }
-#endif
-}
-
-/* UnicodeEquals */
-      static CYTHON_INLINE int __Pyx_PyUnicode_Equals(PyObject* s1, PyObject* s2, int equals) {
-#if CYTHON_COMPILING_IN_PYPY
-    return PyObject_RichCompareBool(s1, s2, equals);
-#else
-#if PY_MAJOR_VERSION < 3
-    PyObject* owned_ref = NULL;
-#endif
-    int s1_is_unicode, s2_is_unicode;
-    if (s1 == s2) {
-        goto return_eq;
-    }
-    s1_is_unicode = PyUnicode_CheckExact(s1);
-    s2_is_unicode = PyUnicode_CheckExact(s2);
-#if PY_MAJOR_VERSION < 3
-    if ((s1_is_unicode & (!s2_is_unicode)) && PyString_CheckExact(s2)) {
-        owned_ref = PyUnicode_FromObject(s2);
-        if (unlikely(!owned_ref))
-            return -1;
-        s2 = owned_ref;
-        s2_is_unicode = 1;
-    } else if ((s2_is_unicode & (!s1_is_unicode)) && PyString_CheckExact(s1)) {
-        owned_ref = PyUnicode_FromObject(s1);
-        if (unlikely(!owned_ref))
-            return -1;
-        s1 = owned_ref;
-        s1_is_unicode = 1;
-    } else if (((!s2_is_unicode) & (!s1_is_unicode))) {
-        return __Pyx_PyBytes_Equals(s1, s2, equals);
-    }
-#endif
-    if (s1_is_unicode & s2_is_unicode) {
-        Py_ssize_t length;
-        int kind;
-        void *data1, *data2;
-        if (unlikely(__Pyx_PyUnicode_READY(s1) < 0) || unlikely(__Pyx_PyUnicode_READY(s2) < 0))
-            return -1;
-        length = __Pyx_PyUnicode_GET_LENGTH(s1);
-        if (length != __Pyx_PyUnicode_GET_LENGTH(s2)) {
-            goto return_ne;
-        }
-        kind = __Pyx_PyUnicode_KIND(s1);
-        if (kind != __Pyx_PyUnicode_KIND(s2)) {
-            goto return_ne;
-        }
-        data1 = __Pyx_PyUnicode_DATA(s1);
-        data2 = __Pyx_PyUnicode_DATA(s2);
-        if (__Pyx_PyUnicode_READ(kind, data1, 0) != __Pyx_PyUnicode_READ(kind, data2, 0)) {
-            goto return_ne;
-        } else if (length == 1) {
-            goto return_eq;
-        } else {
-            int result = memcmp(data1, data2, (size_t)(length * kind));
-            #if PY_MAJOR_VERSION < 3
-            Py_XDECREF(owned_ref);
-            #endif
-            return (equals == Py_EQ) ? (result == 0) : (result != 0);
-        }
-    } else if ((s1 == Py_None) & s2_is_unicode) {
-        goto return_ne;
-    } else if ((s2 == Py_None) & s1_is_unicode) {
-        goto return_ne;
-    } else {
-        int result;
-        PyObject* py_result = PyObject_RichCompare(s1, s2, equals);
-        if (!py_result)
-            return -1;
-        result = __Pyx_PyObject_IsTrue(py_result);
-        Py_DECREF(py_result);
-        return result;
-    }
-return_eq:
-    #if PY_MAJOR_VERSION < 3
-    Py_XDECREF(owned_ref);
-    #endif
-    return (equals == Py_EQ);
-return_ne:
-    #if PY_MAJOR_VERSION < 3
-    Py_XDECREF(owned_ref);
-    #endif
-    return (equals == Py_NE);
-#endif
 }
 
 /* None */

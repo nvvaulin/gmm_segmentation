@@ -54,8 +54,7 @@ public:
 
 	// Subtract the current frame from the background model and produce a binary foreground mask using
 	// both a low and high threshold value.
-	virtual void Subtract(int frame_num, const Image& data,  
-													BwImage& low_threshold_mask, BwImage& high_threshold_mask) = 0;	
+	virtual void Subtract(int frame_num, const Image& data, const Image& image,  BwImage& low_threshold_mask, BwImage& high_threshold_mask) = 0;	
 
 	// Update the background model. Only pixels set to background in update_mask are updated.
 	virtual void Update(int frame_num, const Image& data,  const BwImage& update_mask) = 0;
