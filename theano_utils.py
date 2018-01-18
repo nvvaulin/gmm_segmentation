@@ -70,28 +70,3 @@ def accuracy(p,n,rate = None):
     t_n = 1.-classify(n,rate)    
     return (t_p.sum()+t_n.sum())/(p.size+n.size),rate
     
-def center_loss(_X,_Y):
-    """
-    Y: mask , 0 -- positive
-    """
-    _X = _X/(0.001+T.sqrt(T.sqr(_X).sum(1))[:,None])
-    tX = _X[:64*24*24//2]
-    tY = 1.-_Y[:64*24*24//2]
-    Y = 1.- _Y[64*24*24//2:]
-    X = _X[64*24*24//2:]
-    center = (tX*tY[:,None]).sum(0)/(0.001+tY.sum())
-    Y = 2.*Y-1.
-    return (T.sqr(center[None,:]-X)*Y[:,None]).mean()
-
-def center_accuracy(X,Y):
-    """
-    Y: mask , 0 -- positive
-    """
-    Tr = X[:len(X)//2][Y[:len(X)//2] < 0.1]
-    Xp = X[len(X)//2:][Y[len(X)//2:] < 0.1]
-    Xn = X[len(X)//2:][Y[len(X)//2:] > 0.9]
-    c = Tr.mean(0)
-    d = np.std(Tr,axis=0).sum()
-    tp = Xp[np.square(Xp-c).sum(1) < d**2]
-    tn = Xn[np.square(Xn-c).sum(1) > d**2]
-    return (len(tp)+len(tn))/float(len(Xp)+len(Xn)),d

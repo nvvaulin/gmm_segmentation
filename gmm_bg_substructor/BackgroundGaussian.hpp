@@ -15,7 +15,7 @@ class BackgroundGaussian
 		static double T_B;
 
 		double weight;
-        std::shared_ptr<double> mean;
+        vector<double> mean;
         double stdDeviation; //same for all RGB values, sigma without square
         int num_channels;
         bool matchedFlag;
@@ -23,11 +23,12 @@ class BackgroundGaussian
     public:
 
 		BackgroundGaussian(int _num_channels):
-			mean(new double[_num_channels]),
+			mean(vector<double>(_num_channels)),
 			num_channels(_num_channels)
 		{}
         void initialise(double weight, double *gaussianMean, double stdDeviation);
-
+	~BackgroundGaussian(){
+	};
         void getMean(double * gaussianMeans);
         double getWeight() { return weight; }
         double getStdDeviation() { return stdDeviation; }

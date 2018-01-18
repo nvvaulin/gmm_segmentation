@@ -27,7 +27,8 @@ params = {
 	'fgAlpha': 0.5,
 	'tb': 3,
 	'tf': 20,
-	'tl': 0.1
+	'tl': 0.1,
+	'init_variance': 15
 }
 
 

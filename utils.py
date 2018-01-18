@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import lasagne
 from lasagne.layers import get_all_layers
@@ -7,9 +6,7 @@ import theano
 import theano.tensor as T
 import lasagne
 from lasagne import layers as L
-from broadcast import BroadcastLayer,UnbroadcastLayer
 from lasagne.nonlinearities import rectify
-from lasagne.regularization import l2, regularize_network_params
 
 def get_network_str(layer, get_network=True, incomings=False, outgoings=False):
     """ Returns a string representation of the entire network contained under this layer.
@@ -134,43 +131,3 @@ def load_weights(network,name ):
     params = [f["param%d" % i] for i in range(len(f.files))]
     f.close()
     L.set_all_param_values(network,params)
-
-def define_updates(network, input_var,background, target_var, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5,train_only=False,params=None):
-    if params is None:
-        params = L.get_all_params(network, trainable=True)
-    l2_loss = l2_lambda * regularize_network_params(network, l2)
-        
-    train_out = L.get_output(network)
-    train_loss, train_acc = _score_metrics(train_out, target_var, l2_loss)
-    updates = lasagne.updates.nesterov_momentum(
-            train_loss, params, learning_rate=learning_rate, momentum=momentum)
-    train_fn = theano.function([input_var,background, target_var],[train_loss, train_acc,train_out],updates=updates)
-    if not train_only:
-        val_out = L.get_output(network, deterministic=True)
-        val_loss, val_acc = _score_metrics(val_out, target_var)
-        val_fn = theano.function([input_var,background, target_var], [val_loss, val_acc,val_out])
-        return train_fn, val_fn
-    else:
-        return train_fn
-
-def _score_metrics(out, target_var,  l2_loss=0):
-    _EPSILON=1e-6
-
-    target_flat = target_var.dimshuffle(1,0,2,3).flatten(ndim=2).dimshuffle(1,0)
-    
-    prediction = out.dimshuffle(1,0,2,3).flatten(ndim=2).dimshuffle(1,0)
-    prediction = T.clip(prediction,_EPSILON,1-_EPSILON)
-
-    loss = lasagne.objectives.categorical_crossentropy(prediction, target_flat).mean()+l2_loss
-    accuracy = T.mean(T.eq(T.argmax(prediction, axis=1), T.argmax(target_flat, axis=1)),
-                      dtype=theano.config.floatX)
-
-    return loss, accuracy
-
-
-def categorical_crossentropy(predictions,labels):    
-    _EPSILON = 1e-6
-    labels = labels.dimshuffle(1,0,2,3).flatten(ndim=2).dimshuffle(1,0)
-    predictions = predictions.dimshuffle(1,0,2,3).flatten(ndim=2).dimshuffle(1,0)
-    predictions = lasagne.nonlinearities.softmax(predictions)
-    return lasagne.objectives.categorical_crossentropy(T.clip(predictions,_EPSILON,1-_EPSILON),labels).mean()

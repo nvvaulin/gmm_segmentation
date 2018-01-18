@@ -24,6 +24,7 @@ public:
 		double tb;
 		double tf;
 		double tl;
+		double init_variance;
 	};
 
 	struct FLUXParams{
@@ -47,12 +48,13 @@ public:
 		fluxParams.nAs = nAs;
 		fluxParams.nAt = nAt;
 	}
-	void SetGMMPatams(double bgAlpha, double fgAlpha, double tb, double tf, double tl){
+	void SetGMMPatams(double bgAlpha, double fgAlpha, double tb, double tf, double tl,float init_variance){
 		gmmParams.bgAlpha = bgAlpha;
 		gmmParams.fgAlpha = fgAlpha;
 		gmmParams.tb = tb;
 		gmmParams.tf = tf;
 		gmmParams.tl = tl;
+		gmmParams.init_variance = init_variance;
 	}
 
 private:

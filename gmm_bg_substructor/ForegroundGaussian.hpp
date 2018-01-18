@@ -12,23 +12,26 @@
 #include <cstring>
 #include <memory>
 #include "tools.hpp"
-
+#include <vector>
+using namespace std;
 class ForegroundGaussian {
 
 private:
 	static double ALPHA;
 	static double T_F;
 
-    std::shared_ptr<double> mean;
+    vector<double> mean;
     bool initFlag;
     int num_channels;
 
 public:
     ForegroundGaussian(int _num_channels) :
         initFlag(false),
-        mean(new double[_num_channels]),
+        mean(vector<double>(_num_channels)),
         num_channels(_num_channels)
     {};
+	~ForegroundGaussian(){
+	};
     void initialise(double *gaussianMean);
     void getMean(double * gaussianMean);
 

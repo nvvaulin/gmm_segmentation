@@ -20,8 +20,8 @@ public:
 
 	void update(const Mat & input_fetures,const Mat & input_img, Mat & result, Mat & background, Mat & foreground, Mat & flux);
 
-	void setSplitGaussianParam(double bgAlpha, double fgAlpha, double tb, double tf, double tl){
-		splitGaussian = new SplitGaussian(bgAlpha, fgAlpha, tb, tf, tl);
+	void setSplitGaussianParam(double bgAlpha, double fgAlpha, double tb, double tf, double tl,double init_variance){
+		splitGaussian = new SplitGaussian(bgAlpha, fgAlpha, tb, tf, tl,init_variance);
 	}
 
 	void setFluxTensorParam(double th, int nDs, int nDt, int nAs, int nAt){

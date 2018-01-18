@@ -15,7 +15,7 @@ void BackgroundGaussian::initialise(double weight, double *gaussianMean, double 
     this->weight = weight;
     for(int i = 0; i < num_channels; ++i)
     {
-        mean.get()[i] = gaussianMean[i];
+        mean[i] = gaussianMean[i];
     }
     this->stdDeviation = stdDeviation;
 }
@@ -24,7 +24,7 @@ void BackgroundGaussian::getMean(double * gaussianMeans)
 {
     for(int i = 0; i < num_channels; ++i)
     {
-        gaussianMeans[i] = mean.get()[i];
+        gaussianMeans[i] = mean[i];
     }
 }
 
@@ -41,12 +41,12 @@ void BackgroundGaussian::updateMatched(double *rgb)
 
     //RGB means
     for(int i = 0; i < num_channels; ++i)
-    {   mean.get()[i] *= (1 - ALPHA);
-        mean.get()[i] += ALPHA*rgb[i];
+    {   mean[i] *= (1 - ALPHA);
+        mean[i] += ALPHA*rgb[i];
     }
 
     //Standard deviation
-    double dist = malahidanDistance(rgb, mean.get(), num_channels);
+    double dist = malahidanDistance(rgb, &mean[0], num_channels);
     stdDeviation *= stdDeviation;
     stdDeviation *= (1 - ALPHA);
     stdDeviation += ALPHA*dist;
@@ -60,7 +60,7 @@ double BackgroundGaussian::checkPixelMatch(double *rgb, double sigma) // max((I-
 	double max;
     for(int i = 0; i < num_channels; ++i)
     {
-    	diff[i] = rgb[i]-mean.get()[i];
+    	diff[i] = rgb[i]-mean[i];
     	diff[i] *= diff[i];
     	diff[i] -= T_B*sigma;
 

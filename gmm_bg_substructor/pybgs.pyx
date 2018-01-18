@@ -84,7 +84,7 @@ cdef extern from "create_params_wrapper.hpp":
 
     FTSGParams CreateFTSGParams(int width, int height,
 				float th, int nDs, int nDt, int nAs, int nAt,
-				float bgAlpha, float fgAlpha, float tb, float tf, float tl)
+				float bgAlpha, float fgAlpha, float tb, float tf, float tl,float init_variance)
 
     void set_image_data(ImageBase* updated_image, IplImage* updated_ipl_image, 
                         float* data_ptr, int step)
@@ -115,7 +115,28 @@ cdef class BackgroundSubtraction:
         cvReleaseImageHeader(&self.iplimage)
         cvReleaseImageHeader(&self.low_mask_iplimage)
         cvReleaseImageHeader(&self.high_mask_iplimage)
+        print('delete bgs')
         del self.bg
+
+    def reset(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image,params):
+        del self.bg
+
+        if(params['algorithm'] == 'FTSG'):
+            self.bg = new FTSG()
+            ftsg_params = CreateFTSGParams(
+	    	image.shape[1], image.shape[0], 
+	    	params['th'], params['nDs'], params['nDt'], params['nAs'], params['nAt'], 
+	    	params['bgAlpha'], params['fgAlpha'],params['tb'],params['tf'],params['tl'],params['init_variance'])
+            self.bg.Initalize(ftsg_params)
+        else:            
+            self.bg = new GrimsonGMM()
+            grimson_gmm_params = CreateGrimsonGMMParams(
+	    	image.shape[1], image.shape[0], 
+	    	params['low'], params['high'], 
+	    	params['alpha'], params['max_modes'],params['channels'],params['bg_threshold'],params['variance'],params['min_variance'],params['variance_factor'])
+            self.bg.Initalize(grimson_gmm_params)
+        self.bg.InitModel(self.data)
+
 
     def init_model(self,np.float32_t[:, :, :] data, np.float32_t[:, :, :] image, params):
         if(params['algorithm'] == 'FTSG'):
@@ -123,7 +144,7 @@ cdef class BackgroundSubtraction:
             ftsg_params = CreateFTSGParams(
 	    	image.shape[1], image.shape[0], 
 	    	params['th'], params['nDs'], params['nDt'], params['nAs'], params['nAt'], 
-	    	params['bgAlpha'], params['fgAlpha'],params['tb'],params['tf'],params['tl'])
+	    	params['bgAlpha'], params['fgAlpha'],params['tb'],params['tf'],params['tl'],params['init_variance'])
             self.bg.Initalize(ftsg_params)
         else:            
             self.bg = new GrimsonGMM()

@@ -1,0 +1,27 @@
+results/unet_no_bn_ndim12_gm_num3_gmm/badWeather/blizzard
+AveragePrecision: 0.0
+FNR: 0.742339000124
+Recall: 0.257660999876
+Sp: 0.99689212151
+Precision: 0.587760046855
+PWC: 1.56058716413
+FPR: 0.00310787848951
+F_Measure: 0.358266078058
+results/unet_no_bn_ndim12_gm_num3_gmm/baseline/highway
+AveragePrecision: 0.0
+FNR: nan
+Recall: nan
+Sp: nan
+Precision: nan
+PWC: nan
+FPR: nan
+F_Measure: nan
+total result
+AveragePrecision: 0.0
+FNR: nan
+Recall: nan
+Sp: nan
+Precision: nan
+PWC: nan
+FPR: nan
+F_Measure: nan

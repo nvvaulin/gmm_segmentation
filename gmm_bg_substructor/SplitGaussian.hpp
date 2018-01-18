@@ -2,21 +2,24 @@
 #define SRC_SPLIT_GAUSSIANS_HPP_
 
 #include <opencv2/core/core.hpp>
+#include <vector>
 using namespace cv;
-
+using namespace std;
 #include "Pixel.hpp"
 #include "tools.hpp"
 
 class SplitGaussian
 {
     private:
-        SplitGaussianPixel::Pixel **pixels;
+        vector<vector<SplitGaussianPixel::Pixel> > pixels;
         int height;
         int width;
         bool initFlag;
 
     public:
-        SplitGaussian(double bgAlpha, double fgAlpha, double tb, double tf, double tl);
+
+	double init_variance;
+        SplitGaussian(double bgAlpha, double fgAlpha, double tb, double tf, double tl,double init_variance);
         ~SplitGaussian();
 
         bool isInitialized() { return initFlag; }

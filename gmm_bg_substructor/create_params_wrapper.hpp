@@ -55,12 +55,12 @@ GrimsonParams CreateGrimsonGMMParams(int width, int height,
 
 FTSGParams CreateFTSGParams(int width, int height,
 				float th, int nDs, int nDt, int nAs, int nAt,
-				float bgAlpha, float fgAlpha, float tb, float tf, float tl)
+				float bgAlpha, float fgAlpha, float tb, float tf, float tl,float init_variance)
 {
 	Algorithms::BackgroundSubtraction::FTSGParams params;
 	params.SetFrameSize(width, height);
 	params.SetFLUXParams(th, nDs, nDt, nAs, nAt);
-	params.SetGMMPatams(bgAlpha, fgAlpha, tb, tf, tl);
+	params.SetGMMPatams(bgAlpha, fgAlpha, tb, tf, tl,init_variance);
 	return params;
 }
 

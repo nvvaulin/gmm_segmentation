@@ -9,7 +9,7 @@ void ForegroundGaussian::initialise(double *gaussian_mean)
 {
     for(int i = 0; i < num_channels; ++i)
     {
-        mean.get()[i] = gaussian_mean[i];
+        mean[i] = gaussian_mean[i];
     }
     initFlag = true;
 }
@@ -18,7 +18,7 @@ void ForegroundGaussian::getMean(double * gaussianMean)
 {
     for(int i = 0; i < num_channels; ++i)
     {
-        gaussianMean[i]= mean.get()[i];
+        gaussianMean[i]= mean[i];
     }
 }
 
@@ -30,8 +30,8 @@ void ForegroundGaussian::update(double *rgb)
 	}
 
     for(int i = 0; i < num_channels; ++i)
-    {   mean.get()[i] *= (1 - ALPHA);
-        mean.get()[i] += ALPHA*rgb[i];
+    {   mean[i] *= (1 - ALPHA);
+        mean[i] += ALPHA*rgb[i];
     }
 }
 
@@ -40,6 +40,6 @@ bool ForegroundGaussian::checkPixelMatch(double *rgb) // max((I-u)-mean)^2 - T_F
 	if(!initFlag)
 		return false;
 
-	double dist = malahidanDistance(rgb, mean.get(), num_channels);
+	double dist = malahidanDistance(rgb, &mean[0], num_channels);
 	return dist < T_F*T_F;
 }

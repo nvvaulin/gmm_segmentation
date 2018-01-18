@@ -5,11 +5,12 @@
 #include "tools.hpp"
 #include "SplitGaussian.hpp"
 
-SplitGaussian::SplitGaussian(double bgAlpha, double fgAlpha, double tb, double tf, double tl) :
+SplitGaussian::SplitGaussian(double bgAlpha, double fgAlpha, double tb, double tf, double tl,double _init_variance) :
 	pixels(NULL),
         height(0),
         width(0),
-	initFlag(false)
+	initFlag(false),
+	init_variance(_init_variance)
 
 {
 	ForegroundGaussian::setAlpha(fgAlpha);
@@ -21,30 +22,16 @@ SplitGaussian::SplitGaussian(double bgAlpha, double fgAlpha, double tb, double t
 
 SplitGaussian::~SplitGaussian()
 {
-	for(int i=0; i < height; i++)
-		delete [] pixels[i];
-	delete [] pixels;
-
 }
 
 void SplitGaussian::setFrameSize(int width, int height,int num_channels){
-
-	if(pixels != NULL){
-		for(int i=0; i < height; i++)
-			delete [] pixels[i];
-		delete [] pixels;
-	}
-
 	this->width = width;
 	this->height = height;
 
-	pixels = new SplitGaussianPixel::Pixel*[height];
+	pixels = vector<vector<SplitGaussianPixel::Pixel> >(height);
     for(int i=0; i < height; ++i)
 	{
-        pixels[i] = new SplitGaussianPixel::Pixel[width];
-	    for(int j=0; j < width; ++j){
-			pixels[i][j] = SplitGaussianPixel::Pixel(num_channels);
-		}
+        pixels[i] = vector<SplitGaussianPixel::Pixel>(width,SplitGaussianPixel::Pixel(num_channels));
 	}
 }
 
@@ -102,6 +89,7 @@ void SplitGaussian::detection(const Mat & input, Mat & background, Mat & foregro
 
 	total_diff = total_diff/(input.rows*input.cols);
 	*isLargeChange = total_diff > 20;
+	
 	//cout << total_diff << endl;
 
 	prevBackground = background.clone();
@@ -123,7 +111,7 @@ void SplitGaussian::initialize(const Mat & input){
 			for(unsigned c=0; c < input.channels();++c){
 					input_rgb[c] = (double)*input_pixel_ptr++;
 			}
-	    	pixels[row][col].insertBackgroundGaussian(0.2, input_rgb, 15);
+	    	pixels[row][col].insertBackgroundGaussian(0.2, input_rgb, init_variance);
 	    }
 	}
 	delete[] input_rgb;

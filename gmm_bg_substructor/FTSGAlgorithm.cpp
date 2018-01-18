@@ -130,7 +130,7 @@ void FTSGAlgorithm :: gaussianUpdate(const Mat & input, bool largeChange){
 	    	splitGaussian->update(row, col, updateMask[row][col], input_rgb);
 
 	    	if(largeChange)
-	    		splitGaussian->addNewGaussian(row, col, 0.2, input_rgb, 15);
+	    		splitGaussian->addNewGaussian(row, col, 0.2, input_rgb, splitGaussian->init_variance);
 
 	    }
 	}
