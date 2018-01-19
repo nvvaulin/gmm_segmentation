@@ -15,6 +15,8 @@ class SplitGaussian
         int height;
         int width;
         bool initFlag;
+        int numOfBgGaussians = 0;
+
 
     public:
 

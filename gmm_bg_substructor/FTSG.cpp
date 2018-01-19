@@ -42,7 +42,7 @@ void FTSG::Subtract(int frame_num, const Image& features,const Image& image, BwI
 
 	cv::Mat background(low_threshold_mask.Ptr(),false);
 	cv::Mat foreground(high_threshold_mask.Ptr(),false);
-	algorithm.update(features_mat,image_mat,result,background,foreground,flux);
+	algorithm.update(features_mat,image_mat,background,foreground);
 //	cv::imshow("input",input_img);
 //	cv::imshow("result",result);
 //	cv::imshow("foreground",foreground);

@@ -6,38 +6,32 @@
  */
 
 #include "FTSGAlgorithm.hpp"
+#include <vector>
 #include <iostream>
 
+using namespace std;
+
 FTSGAlgorithm::FTSGAlgorithm() {
-	splitGaussian = NULL;
-	fluxTensor = NULL;
 }
 
 FTSGAlgorithm::~FTSGAlgorithm() {
-	delete splitGaussian;
-	delete fluxTensor;
 }
 
-void FTSGAlgorithm :: update(const Mat & input_features,const Mat & input_img, Mat & result, Mat & background, Mat & foreground, Mat & flux){
-	if(result.empty()){
-		int height = input_img.rows;
-		int width = input_img.cols;
-		splitGaussian->setFrameSize(width, height,input_features.channels());
+void FTSGAlgorithm :: reset(const Mat & input_features,const Mat & input_img){
+	int height = input_img.rows;
+	int width = input_img.cols;
+	splitGaussian->setFrameSize(width, height,input_features.channels());
+	updateMask = vector<vector< bool> > (height,vector<bool>(width));
+	flux = Mat(input_img.size(), CV_8U);
+}
 
-		updateMask = new bool* [height];
-		for(int i=0; i<height; ++i)
-			updateMask[i] = new bool [width];
-
-		result = Mat(input_img.size(), CV_8U);
-		background = Mat(input_img.size(), CV_8U);
-		foreground = Mat(input_img.size(), CV_8U);
-		flux = Mat(input_img.size(), CV_8U);
+void FTSGAlgorithm :: update(const Mat & input_features,const Mat & input_img, Mat & background, Mat & foreground){
+	if(flux.empty()){
+		reset(input_features,input_img);
 	}
-
-	result.setTo(Scalar(BLACK,BLACK,BLACK));
+	flux.setTo(Scalar(BLACK,BLACK,BLACK));
 	background.setTo(Scalar(BLACK,BLACK,BLACK));
 	foreground.setTo(Scalar(BLACK,BLACK,BLACK));
-	flux.setTo(Scalar(BLACK,BLACK,BLACK));
 
 	if(!splitGaussian->isInitialized()){
 		splitGaussian->initialize(input_features);
@@ -47,18 +41,16 @@ void FTSGAlgorithm :: update(const Mat & input_features,const Mat & input_img, M
 	bool largeChange;
 	fluxTensor->update(input_img, flux);
 	splitGaussian->detection(input_features, background, foreground, &largeChange);
+	if(largeChange){
 
+		cout<<"largeChange\n";cout.flush();
+	}
 	Mat staticForeground = Mat(input_img.size(), CV_8U);
 	Mat fusionResult = Mat(input_img.size(), CV_8U);
 
 	fusion(flux, background, foreground, fusionResult, staticForeground);
 
 	gaussianUpdate(input_features, largeChange);
-
-	//temp
-	//result = fusionResult.clone();
-	result = staticForeground.clone();
-
 }
 
 void FTSGAlgorithm :: fusion(const Mat & flux, const Mat & background, const Mat & foreground, Mat & fusion, Mat & staticFg)

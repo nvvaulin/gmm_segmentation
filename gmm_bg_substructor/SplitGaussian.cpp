@@ -97,8 +97,6 @@ void SplitGaussian::detection(const Mat & input, Mat & background, Mat & foregro
 
 void SplitGaussian::initialize(const Mat & input){
 
-	static int numOfBgGaussians = 0;
-
 	double* input_rgb = new double[input.channels()];
 	const float * input_pixel_ptr;
 
@@ -116,7 +114,7 @@ void SplitGaussian::initialize(const Mat & input){
 	}
 	delete[] input_rgb;
 	numOfBgGaussians++;
-	if(numOfBgGaussians == 5)
+	if(numOfBgGaussians >= 5)
 		initFlag = true;
 
 }

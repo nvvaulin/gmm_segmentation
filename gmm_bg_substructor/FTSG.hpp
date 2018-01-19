@@ -66,8 +66,6 @@ class FTSG : public Bgs
 {
 
 	FTSGAlgorithm algorithm;
-	cv::Mat flux;
-	cv::Mat result;
 public:
 	FTSG();
 	~FTSG();
