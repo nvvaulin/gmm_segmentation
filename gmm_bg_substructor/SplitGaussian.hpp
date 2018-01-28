@@ -11,7 +11,6 @@ using namespace std;
 class SplitGaussian
 {
     private:
-        vector<vector<SplitGaussianPixel::Pixel> > pixels;
         int height;
         int width;
         bool initFlag;
@@ -20,6 +19,7 @@ class SplitGaussian
 
     public:
 
+    vector<vector<SplitGaussianPixel::Pixel> > pixels;
 	double init_variance;
         SplitGaussian(double bgAlpha, double fgAlpha, double tb, double tf, double tl,double init_variance);
         ~SplitGaussian();

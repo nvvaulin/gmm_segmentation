@@ -23,15 +23,17 @@ def make_gmms(shape,gm_num):
     return gmms
 
     
+
 def fit_gmms(features,gmms,masks = None):
     for i in range(features.shape[1]):
         for j in range(features.shape[2]):
             f = features[:,i,j]
+            gmm = gmms[i*features.shape[2]+j]
             if not (masks is None):
-                gmm = gmms[i*features.shape[2]+j]
                 if(len(f[masks[:,i,j] < 30]) > gmm.n_components*3):
                     f = f[masks[:,i,j] < 30]
             gmm.fit(f)
+
 
 def predict_pixelwise(features,gmms,predict_fn):
     res = np.zeros_like(features[:,:,:,0])

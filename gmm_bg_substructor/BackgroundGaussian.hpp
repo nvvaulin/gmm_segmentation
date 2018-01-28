@@ -15,12 +15,12 @@ class BackgroundGaussian
 		static double T_B;
 
 		double weight;
-        vector<double> mean;
-        double stdDeviation; //same for all RGB values, sigma without square
         int num_channels;
         bool matchedFlag;
 
     public:
+        double stdDeviation; //same for all RGB values, sigma without square
+        vector<double> mean;
 
 		BackgroundGaussian(int _num_channels):
 			mean(vector<double>(_num_channels)),

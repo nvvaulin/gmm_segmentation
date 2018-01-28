@@ -13,9 +13,9 @@ class Pixel
 {
     private:
 		ForegroundGaussian fgGaussian;
-		vector <BackgroundGaussian> bgGaussians;
 		int num_channels;
     public:
+        vector <BackgroundGaussian> bgGaussians;
         Pixel(int _num_channels=1):
             fgGaussian(ForegroundGaussian(_num_channels)),
             num_channels(_num_channels)

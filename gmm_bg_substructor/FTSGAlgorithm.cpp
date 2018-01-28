@@ -8,6 +8,8 @@
 #include "FTSGAlgorithm.hpp"
 #include <vector>
 #include <iostream>
+#include "tools.hpp"
+#include <math.h>
 
 using namespace std;
 
@@ -50,7 +52,46 @@ void FTSGAlgorithm :: update(const Mat & input_features,const Mat & input_img, M
 
 	fusion(flux, background, foreground, fusionResult, staticForeground);
 
+/***************show***************************/
 	gaussianUpdate(input_features, largeChange);
+
+
+
+	cv::Mat distance = cv::Mat::zeros(input_img.size(), CV_32FC1);
+	float glob_max = -1;
+
+	double* input_rgb = new double[input_features.channels()];
+
+	const float * input_pixel_ptr;
+
+	for(int row = 0; row < input_features.rows; ++row){
+		input_pixel_ptr = input_features.ptr<float>(row);
+	    for(int col = 0; col < input_features.cols; ++col){
+			for(unsigned c = 0; c < input_features.channels();++c){
+			    	input_rgb[c] = (double)*input_pixel_ptr++;
+			}
+			float loc_min = 10e10;
+			for (auto& k : splitGaussian->pixels[row][col].bgGaussians){
+				float d = malahidanDistance(input_rgb,&k.mean[0],k.mean.size())/(k.stdDeviation*k.stdDeviation);
+				d = sqrt(d);
+				if (d < loc_min){
+					loc_min = d;
+				}
+			}
+			if(loc_min > glob_max){
+				glob_max = loc_min;
+			}
+			distance.at<float>(row,col) = loc_min;
+		}
+	}
+	delete input_rgb;
+	distance/=glob_max;
+
+	cv::imshow("distance",distance);
+	cv::imshow("flux",flux);	
+	cv::imshow("staticForeground",staticForeground);
+	cv::imshow("fusionResult",fusionResult);
+	cv::waitKey(1);
 }
 
 void FTSGAlgorithm :: fusion(const Mat & flux, const Mat & background, const Mat & foreground, Mat & fusion, Mat & staticFg)

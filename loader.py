@@ -83,3 +83,19 @@ class TieLoader:
             if(ties is None):
                 continue
             yield ties,mask
+            
+        
+
+def data_generator(gmm_loader,
+                   epoch_size,
+                   shuffle=False):
+    for i,(ties,mask) in enumerate(gmm_loader.iterate(shuffle)): 
+        if(i >= epoch_size):
+            break
+        ties = np.transpose(ties,(0,3,1,2)).astype(np.float32)
+        mask = mask.astype(np.float32)/255.
+        mask[mask <= 0.1] = 0
+        mask[mask >= 0.9] = 1.
+        mask[(mask < 0.9)&(mask > 0.1)] = 0.5
+        yield ties,mask
+        
