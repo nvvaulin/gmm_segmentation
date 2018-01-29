@@ -3,6 +3,15 @@ import cv2
 import numpy as np
 from dataset_tools import *
    
+    
+def clip_random(imgs,masks=None,s=None):
+    y = int(np.random.randint(imgs.shape[1]-s+1))
+    x = int(np.random.randint(imgs.shape[2]-s+1))
+    if(masks is None):
+        return imgs[:,y:y+s,y:y+s]
+    else:
+        return imgs[:,y:y+s,y:y+s],masks[:,y:y+s,y:y+s]
+    
 class TieLoader:
     def __init__(self,path,min_r,max_r,t_size=48,sample_size = 32,mask_size = 32):
         self.t_size = t_size
@@ -38,7 +47,7 @@ class TieLoader:
             return None
         data = image_to_ties(cv2.imread(m_paths[np.random.randint(len(m_paths))]),self.t_size,self.t_size)
         data = data[data.sum((1,2,3)) > 10 ]
-        return clip_ties(data,self.sample_size)
+        return clip_random(data,s=self.sample_size)
             
     
     def balance_tie(self,path,ties,mask):
@@ -69,8 +78,8 @@ class TieLoader:
     
     def load_sample(self,path):
         tie = image_to_ties(cv2.imread(path+'_input.jpg'),self.t_size,self.t_size)
-        tie = clip_ties(tie,self.sample_size)
         mask = image_to_ties(cv2.imread(path+'_mask.png',0),self.t_size,self.t_size)
+        tie,mask = clip_random(tie,mask,self.sample_size)
         mask = clip_ties(mask,self.mask_size)
         tie,mask = self.balance_tie(path,tie,mask)
         return tie,mask

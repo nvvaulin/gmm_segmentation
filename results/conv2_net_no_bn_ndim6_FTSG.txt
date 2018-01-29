@@ -1,0 +1,18 @@
+results/conv2_net_no_bn_ndim6_FTSG/badWeather/blizzard
+AveragePrecision: 0.0
+FNR: 0.104767594015
+Recall: 0.895232405985
+Sp: 0.997345700246
+Precision: 0.602039254696
+PWC: 0.31102709566
+FPR: 0.0026542997538
+F_Measure: 0.719929542023
+results/conv2_net_no_bn_ndim6_FTSG/baseline/highway
+AveragePrecision: 0.0
+FNR: 0.0244787836629
+Recall: 0.975521216337
+Sp: 0.978198234931
+Precision: 0.703948937067
+PWC: 2.19368460946
+FPR: 0.0218017650691
+F_Measure: 0.817778299823
