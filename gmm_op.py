@@ -102,7 +102,7 @@ class GMM(mixture.GaussianMixture):
     def fit(self,X):
         if(not self.X is None):
             if(self.X.shape == X.shape):
-                if(np.abs(self.X-X).mean()<1e-10):
+                if(np.abs(self.X-X).mean()<1e-15):
                     return self;
         self.X = X.copy()
         super(GMM,self).fit(X)
