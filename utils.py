@@ -122,12 +122,17 @@ def _get_table_str(table):
     return table_str
 
 
-def save_weights(network, name ):
+def save_weights(network, name,additional_params = [] ):
     print('checkpoint '+name+'.npz')
-    np.savez(name+".npz", **{"param%d" % i: param for i, param in enumerate(L.get_all_param_values(network))})
+    np.savez(name+".npz", **{"param%d" % i: param for i, param in enumerate(L.get_all_param_values(network)+additional_params)})
              
-def load_weights(network,name ):
+def load_weights(network,name, additional_params_num = 0):
     f = np.load(name+".npz")
     params = [f["param%d" % i] for i in range(len(f.files))]
     f.close()
+    additional_params = []
+    if(additional_params_num > 0):
+        additional_params = params[-additional_params_num:]
+        params = params[:-additional_params_num]
     L.set_all_param_values(network,params)
+    return additional_params

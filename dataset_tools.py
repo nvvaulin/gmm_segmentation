@@ -68,18 +68,7 @@ def image_to_ties(im,tie_w,tie_h):
 def iterate_video(folder,skip_first_unlabled=True):
     all_img_num = len([i for i in os.listdir(folder+'/input') if (i[-4:] == '.jpg')])
     if(skip_first_unlabled):
-        if(os.path.exists(folder+'/groundtruth/info.txt')):
-            f = int(open(folder+'/groundtruth/info.txt').read())
-        else:
-            for f in range(1,all_img_num+1):
-                name='%06d'%(f)
-                mask = cv2.imread(folder+'/groundtruth/gt'+name+'.png',0)       
-                if(mask[(mask>30) & (mask < 240)].size > 0.1*mask.size):
-                    continue
-                break
-            o = open(folder+'/groundtruth/info.txt','w')
-            o.write(str(f))
-            o.close()
+        f = int(open(folder+'/temporalROI.txt').read().split(' ')[0])
     else:
         f = 1
         
