@@ -130,7 +130,7 @@ def save_weights(network, name,additional_params = dict() ):
              
 def load_weights(network,name):
     f = np.load(name+".npz")
-    params = [f[i] for i in f.files if i.find("lasagne_param") == 0]
+    params = [f["lasagne_param%d" % i] for i in range(len([ j for j in f.files if j.find("lasagne_param") == 0]))]
     additional_params = dict([(i,theano.shared(f[i])) for i in f.files if i.find("lasagne_param") != 0])
     f.close()
     L.set_all_param_values(network,params)

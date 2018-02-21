@@ -246,7 +246,7 @@ class GMMOp(theano.Op):
 def get_gmm(X,gm_num,ndims,use_approx_grad=False,covariance_type='diag'):
     if(gm_num == 1):
         means = T.mean(X,0).reshape((1,-1))
-        covars = (T.std(X,0)**2).reshape((1,-1))
+        covars = (T.std(X,0)**2).reshape((1,-1))+1e-8
         weights = T.ones(1)
     else:
         f = GMMOp(gm_num,ndims,use_approx_grad=use_approx_grad,covariance_type=covariance_type)(X.flatten())

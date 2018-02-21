@@ -2,7 +2,37 @@ import os
 import cv2
 import numpy as np
 from dataset_tools import *
-   
+
+def list_all_img(dir):
+    res = []
+    for i in os.listdir(dir):
+        p = dir+'/'+i
+        if(os.path.isdir(p)):
+            res=res+list_all_img(p)
+        elif (p[-4:] in ['.png','.jpg','.bmp']):
+            res.append(p)
+    return res
+
+
+class IMDB:
+    def __init__(self,all_paths):
+        all_img = []
+        for i,p in enumerate(all_paths):
+            all_img.append(np.fromfile(p,dtype=np.uint8))
+            print '\rreading images %i %i'%(i,i*100/len(all_paths)),
+        print '\rreading images %i %i'%(i,i*100/len(all_paths))
+        self.data = dict(zip(all_paths,all_img))
+        
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self,i):
+        arr = self.data[i]
+        return cv2.imdecode(arr, cv2.CV_LOAD_IMAGE_UNCHANGED)
+    
+    def keys():
+        return self.data.keys()
+            
     
 def clip_random(imgs,masks=None,s=None):
     y = int(np.random.randint(imgs.shape[1]-s+1))
@@ -36,16 +66,14 @@ class TieLoader:
             for i in self.motion_list:
                 f.write(i+'\n')
             f.close()
-            
-    
-
+        self.motion = IMDB(self.motion_list)
             
     def load_motion(self,sample_path):
         p = sample_path[:sample_path.rfind('/')]
         m_paths = [i for i in self.motion_list if i[:min(len(i),len(p))] == p]
         if(len(m_paths) == 0):
             return None
-        data = image_to_ties(cv2.imread(m_paths[np.random.randint(len(m_paths))]),self.t_size,self.t_size)
+        data = image_to_ties(self.motion[m_paths[np.random.randint(len(m_paths))]],self.t_size,self.t_size)
         data = data[data.sum((1,2,3)) > 10 ]
         return clip_random(data,s=self.sample_size)
             
@@ -75,6 +103,7 @@ class TieLoader:
                         return ties,mask
         return None,None
         
+  
     
     def load_sample(self,path):
         tie = image_to_ties(cv2.imread(path+'_input.jpg'),self.t_size,self.t_size)
@@ -83,6 +112,7 @@ class TieLoader:
         mask = clip_ties(mask,self.mask_size)
         tie,mask = self.balance_tie(path,tie,mask)
         return tie,mask
+
     
     def iterate(self,shuffle=False):
         if(shuffle):
