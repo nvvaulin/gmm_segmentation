@@ -135,3 +135,50 @@ def load_weights(network,name):
     f.close()
     L.set_all_param_values(network,params)
     return additional_params
+
+class L2NormLayer(L.Layer):
+    def __init__(self, incoming, epsilon=1e-4, **kwargs):
+        super(L2NormLayer, self).__init__(incoming, **kwargs)
+        self.epsilon = epsilon
+        
+    def get_output_shape_for(self,input_shape):
+        return input_shape[:-1]+(input_shape[-1]+1,)
+        
+    def get_output_for(self, input, **kwargs):
+        sym = T.concatenate([input,T.ones_like(input[...,:1])],-1)
+        sym = sym/(T.sqrt(T.square(sym).sum(-1)+self.epsilon)[:,:,:,None]) 
+        return sym
+
+class NormedDense(L.Layer):
+    def __init__(self, incoming,num_output, W = lasagne.init.GlorotUniform(),epsilon=1e-4, **kwargs):
+        super(NormedDense, self).__init__(incoming, **kwargs)
+        self.epsilon = epsilon
+        self.num_output = num_output
+        self.W = self.add_param(W,(self.input_shape[-1],num_output), 'W', trainable=True, regularizable=True)
+        
+    def get_output_shape_for(self,input_shape):
+        return input_shape[:-1]+(self.num_output,)
+        
+    def get_output_for(self, input, **kwargs):
+        sym = T.dot(input,self.W/(T.sqrt((T.sum(T.square(self.W),0)+self.epsilon))[None,:]))
+        return sym
+    
+class TrivialInit(lasagne.init.Initializer):
+    def __init__(self):
+        pass
+    def sample(self, shape):
+        assert(len(shape) == 4)
+        assert(shape[0]%3 == 0 and shape[1] % 3 == 0)
+        assert(shape[2] == 3 and shape[3] == 3)
+        W = np.random.randn(*shape).astype(np.float32)*0.1
+        if(shape[0]>shape[1]):
+            for k in range(shape[0]/shape[1]):
+                for i in range(shape[1]):
+                    W[i+shape[1]*k,i,1,1] += 1
+        else:
+            for k in range(shape[1]/shape[0]):
+                f = float(shape[1]/shape[0])
+                for i in range(shape[0]):
+                    W[i,i+shape[0]*k,1,1] += 1./f
+        return theano.shared(W)
+

@@ -1,0 +1,63 @@
+results/baseline_train_FTSG/badWeather/skating
+AveragePrecision: 0.0
+FNR: 0.399995958065
+Recall: 0.600004041935
+Sp: 0.926290264278
+Precision: 0.31707505062
+PWC: 9.13160377941
+FPR: 0.0737097357222
+F_Measure: 0.414896192735
+results/baseline_train_FTSG/badWeather/snowFall
+AveragePrecision: 0.0
+FNR: 0.596891413601
+Recall: 0.403108586399
+Sp: 0.911566411723
+Precision: 0.0585986503995
+PWC: 9.52833039531
+FPR: 0.0884335882768
+F_Measure: 0.10232293213
+results/baseline_train_FTSG/badWeather/wetSnow
+AveragePrecision: 0
+FNR: nan
+Recall: nan
+Sp: nan
+Precision: nan
+PWC: nan
+FPR: nan
+F_Measure: nan
+results/baseline_train_FTSG/baseline/office
+AveragePrecision: 0.0
+FNR: 0.0327906354746
+Recall: 0.967209364525
+Sp: 0.995139222194
+Precision: 0.934126429497
+PWC: 0.671880176529
+FPR: 0.00486077780589
+F_Measure: 0.950380078154
+results/baseline_train_FTSG/baseline/pedestrians
+AveragePrecision: 0.0
+FNR: 0.0356465518775
+Recall: 0.964353448122
+Sp: 0.997788286541
+Precision: 0.80350016899
+PWC: 0.252235658661
+FPR: 0.00221171345859
+F_Measure: 0.876608957927
+results/baseline_train_FTSG/baseline/PETS2006
+AveragePrecision: 0.0
+FNR: 0.329598659911
+Recall: 0.670401340089
+Sp: 0.997109167628
+Precision: 0.666835107654
+PWC: 0.568642964193
+FPR: 0.00289083237178
+F_Measure: 0.668613468537
+total result
+AveragePrecision: 0.0
+FNR: 0.278984643786
+Recall: 0.721015356214
+Sp: 0.965578670473
+Precision: 0.556027081432
+PWC: 4.03053859482
+FPR: 0.0344213295271
+F_Measure: 0.602564325897

@@ -1,0 +1,27 @@
+results/conv3_net_with_color_ndim9_FTSG/badWeather/blizzard
+AveragePrecision: 0.0
+FNR: 0.444309717241
+Recall: 0.555690282759
+Sp: 0.99906276319
+Precision: 0.909148756021
+PWC: 0.829626546017
+FPR: 0.000937236810338
+F_Measure: 0.68977562166
+results/conv3_net_with_color_ndim9_FTSG/baseline/highway
+AveragePrecision: 0.0
+FNR: 0.0708977856914
+Recall: 0.929102214309
+Sp: 0.9763472231
+Precision: 0.697455851039
+PWC: 2.62717720708
+FPR: 0.0236527769002
+F_Measure: 0.796784067397
+total result
+AveragePrecision: 0.0
+FNR: 0.257603751466
+Recall: 0.742396248534
+Sp: 0.987704993145
+Precision: 0.80330230353
+PWC: 1.72840187655
+FPR: 0.0122950068552
+F_Measure: 0.743279844529
