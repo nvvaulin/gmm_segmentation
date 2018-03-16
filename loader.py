@@ -17,21 +17,20 @@ def list_all_img(dir):
 class IMDB:
     def __init__(self,all_paths):
         all_img = []
-        for i,p in enumerate(all_paths):
-            all_img.append(np.fromfile(p,dtype=np.uint8))
-            print '\rreading images %i %i'%(i,i*100/len(all_paths)),
-        print '\rreading images %i %i'%(i,i*100/len(all_paths))
-        self.data = dict(zip(all_paths,all_img))
+        self.paths = all_paths
+        self.data = dict()
         
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self,i):
+        if not(i in self.data):
+            self.data.update({i:np.fromfile(i,dtype=np.uint8)})
         arr = self.data[i]
         return cv2.imdecode(arr, cv2.CV_LOAD_IMAGE_UNCHANGED)
     
     def keys():
-        return self.data.keys()
+        return self.paths
             
     
 def clip_random(imgs,masks=None,s=None):
@@ -43,7 +42,7 @@ def clip_random(imgs,masks=None,s=None):
         return imgs[:,y:y+s,y:y+s],masks[:,y:y+s,y:y+s]
     
 class TieLoader:
-    def __init__(self,path,min_r,max_r,t_size=48,sample_size = 32,mask_size = 32):
+    def __init__(self,path,min_r,max_r,t_size=48,sample_size = 32,mask_size = 32,cache_samples=False):
         self.t_size = t_size
         self.min_r = min_r
         self.max_r = max_r
@@ -67,6 +66,10 @@ class TieLoader:
                 f.write(i+'\n')
             f.close()
         self.motion = IMDB(self.motion_list)
+        if(cache_samples):
+            self.samples = IMDB([i+'_input.jpg' for i in self.img_list]+[i+'_mask.png' for i in self.img_list])
+        else:
+            self.samples = None
             
     def load_motion(self,sample_path):
         p = sample_path[:sample_path.rfind('/')]
@@ -106,8 +109,12 @@ class TieLoader:
   
     
     def load_sample(self,path):
-        tie = image_to_ties(cv2.imread(path+'_input.jpg'),self.t_size,self.t_size)
-        mask = image_to_ties(cv2.imread(path+'_mask.png',0),self.t_size,self.t_size)
+        if not (self.samples is None):
+            tie = image_to_ties(self.samples[path+'_input.jpg'],self.t_size,self.t_size)
+            mask = image_to_ties(self.samples[path+'_mask.png'],self.t_size,self.t_size)
+        else:
+            tie = image_to_ties(cv2.imread(path+'_input.jpg'),self.t_size,self.t_size)
+            mask = image_to_ties(cv2.imread(path+'_mask.png',0),self.t_size,self.t_size)
         tie,mask = clip_random(tie,mask,self.sample_size)
         mask = clip_ties(mask,self.mask_size)
         tie,mask = self.balance_tie(path,tie,mask)
