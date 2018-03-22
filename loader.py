@@ -27,7 +27,10 @@ class IMDB:
         if not(i in self.data):
             self.data.update({i:np.fromfile(i,dtype=np.uint8)})
         arr = self.data[i]
-        return cv2.imdecode(arr, cv2.CV_LOAD_IMAGE_UNCHANGED)
+        if(cv2.__version__[0] == '3'):
+            return cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+        else:
+            return cv2.imdecode(arr, cv2.CV_LOAD_IMAGE_UNCHANGED)
     
     def keys():
         return self.paths
