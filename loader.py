@@ -107,6 +107,8 @@ class TieLoader:
                     mask[inx[-i]] = mask[inx[0]]
                     if((means[inx[:-i]].sum()+means[inx[0]]*i)/len(means) < self.max_r):
                         return ties,mask
+            else:
+                return ties,mask
         return None,None
         
   
@@ -125,9 +127,10 @@ class TieLoader:
 
     
     def iterate(self,shuffle=False):
+        img_list = [i for i in self.img_list]
         if(shuffle):
-            np.random.shuffle(self.img_list)
-        for path in self.img_list:
+            np.random.shuffle(img_list)
+        for path in img_list:
             ties,mask = self.load_sample(path)
             if(ties is None):
                 continue

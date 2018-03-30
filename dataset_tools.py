@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 def clip_ties(X,o_size):
         t_size = X.shape[-2]
@@ -14,9 +15,11 @@ def clip_ties(X,o_size):
                       (t_size-o_size)//2:(t_size+o_size)//2,:]
 
 def resize(im,mask,size):
-    im = cv2.resize(im,size)
-    mask = cv2.resize(mask,size)
-    return im,mask
+    def _resize(i):
+        pi = Image.fromarray(i)
+        pi = pi.resize(size)
+        return np.array(pi)
+    return _resize(im),_resize(mask)
 
 def iterate_folders(dataset,out_dir=None):    
     for subsets in os.listdir(dataset):

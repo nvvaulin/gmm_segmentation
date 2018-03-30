@@ -1,9 +1,0 @@
-results/baseline_gmm/badWeather/blizzard
-AveragePrecision: 0.0
-FNR: 0.332270458408
-Recall: 0.667729541592
-Sp: 0.989906006001
-Precision: 0.532193246942
-PWC: 1.55409497995
-FPR: 0.0100939939991
-F_Measure: 0.592306698755

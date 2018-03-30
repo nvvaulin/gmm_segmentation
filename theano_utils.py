@@ -69,4 +69,11 @@ def accuracy(p,n,rate = None):
     t_p = classify(p,rate)    
     t_n = 1.-classify(n,rate)    
     return (t_p.sum()+t_n.sum())/(p.size+n.size),rate
+
+
+def split_tr_p_n(x,y):
+    x_tr_p,x_n = split(x,y)
+    x_p = x_tr_p[x_tr_p.shape[0]//2:]
+    x_tr = x_tr_p[:x_tr_p.shape[0]//2]
+    return x_tr,x_p,x_n
     
