@@ -3,6 +3,48 @@ import numpy as np
 from loader import data_generator
 from utils import get_network_str,save_weights,load_weights
 import sys
+import theano
+import theano.tensor as T
+from gmm_op import get_gmm,calc_log_prob_gmm
+from theano_utils import split,histogram_loss,split_tr_p_n
+from lasagne import layers as L
+import lasagne
+
+
+def make_classifier(X,label,non_learn_params,gm_num,ndim):
+    X = X.reshape((-1,X.shape[-1]))
+    x_tr,x_p,x_n = split_tr_p_n(X,label.flatten())
+    m,c,w = get_gmm(x_tr,gm_num,ndim,use_approx_grad=True)
+    p_n = calc_log_prob_gmm(x_n,m,c,w)
+    p_p = calc_log_prob_gmm(x_p,m,c,w)
+    loss = histogram_loss(p_n,p_p,
+                          non_learn_params['min_cov'],
+                          100,
+                          non_learn_params['width'])[0]
+    prediction = T.nnet.sigmoid(T.concatenate([p_p,p_n],axis=0))
+    Y = T.concatenate([T.ones_like(p_p),T.zeros_like(p_n)],axis=0)
+    return loss,X,Y,prediction,m,c,w,p_p,p_n
+
+def make_train(net,data,label,non_learn_params,gm_num,ndim):
+    sym = L.get_output(net ,deterministic=False)
+    s = int((L.get_output_shape(net)[1]-1)/2)
+    sym = sym[:,s:s+1,s:s+1,:]
+    loss,X,Y,prediction,m,c,w,p_p,p_n = make_classifier(sym,label,non_learn_params,gm_num,ndim)
+    params = L.get_all_params(net,trainable=True)
+    updates = lasagne.updates.adam(loss,params,non_learn_params['lr'])
+    return theano.function([data, label], [loss,X,Y,prediction,m,c,w],\
+                               allow_input_downcast=True, updates=updates)
+
+
+def make_test(net,data,label,non_learn_params,gm_num,ndim):
+    sym = L.get_output(net ,deterministic=True)
+    s = int((L.get_output_shape(net)[1]-1)/2)
+    sym = sym[:,s:s+1,s:s+1]
+    loss,X,Y,prediction,m,c,w,p_p,p_n = make_classifier(sym,label,non_learn_params,gm_num,ndim)
+    return theano.function([data, label], [loss,X,Y,prediction,m,c,w],\
+                               allow_input_downcast=True)
+        
+
 
 
 def iterate_batches(fn,data_generator,epoch,metrix = dict(),ohem = None,logger=None):

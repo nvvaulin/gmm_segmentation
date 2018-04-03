@@ -84,13 +84,29 @@ def conv4_net_dense(data,ndim,verbose=True,model_name='',input_shape = (None,3,N
     res = conv(res,ndim-1,'4',pad=pad)
     res = L.DimshuffleLayer(res,(0,2,3,1),name='transpose')
     res = L2NormLayer(res,1e-8,name='l2norm')
-    res = NormedDense(res,name='normed_dense')
+    res = NormedDense(res,ndim,name='normed_dense')
     if(model_name!=''):
         load_weights(res,'models/'+model_name)
     print get_network_str(res,incomings=True,outgoings=True)
     return res
 
-
+def conv4_net_dense_color(data,ndim,verbose=True,model_name='',input_shape = (None,3,None,None),pad='same'):
+    print('conv4_net_dense')
+    datal = res = L.InputLayer(input_shape
+                           ,data/256.-0.5
+                           ,name='data')
+    res = conv_nonl(datal,6,'1',pad= pad)
+    res = conv_nonl(res,12,'2',pad=pad)
+    res = conv_nonl(res,24,'3',pad=pad)
+    res = conv(res,24,'4',pad=pad)
+    res = L.concat([datal,res],axis=1,name='concat')
+    res = L.DimshuffleLayer(res,(0,2,3,1),name='transpose')
+    res = L2NormLayer(res,1e-8,name='l2norm')
+    res = NormedDense(res,ndim,name='normed_dense')
+    if(model_name!=''):
+        load_weights(res,'models/'+model_name)
+    print get_network_str(res,incomings=True,outgoings=True)
+    return res
 
 
 def UNet(data,ndim,verbose=True,model_name='',input_shape = (None,3,None,None),pad='same',logger=None):
