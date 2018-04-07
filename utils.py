@@ -195,3 +195,10 @@ def get_pp_pn(l,pred):
     pp,pn = np.array(pp),np.array(pn)
     return (np.abs(pn[1:]-pn[:-1])*(pp[1:]+pp[:-1])/2.).sum()
 
+def tee(s,logger):
+    s = str(s)
+    print s
+    if( not (logger is None)):
+        logger.write(s+'\n')
+        logger.flush()
+

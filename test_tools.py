@@ -9,9 +9,10 @@ from gmm_op import get_gmm,calc_log_prob_gmm
 import theano.tensor as T
 from lasagne import layers as L
 import theano
-
-def soft_predict_sym(features,means,covars,weights):
-    return 1.-T.nnet.sigmoid(calc_log_prob_gmm(features,means,covars,weights))
+from multiprocessing import Pool
+from utils import tee
+from networks import make_FCN
+from sklearn.metrics import precision_recall_curve
 
 def calc_metrics_imgs(predict,label):
     predict,label = predict.flatten(),label.flatten()
@@ -94,6 +95,9 @@ def calc_metric_all_folders(data_dir):
     print 'total result'
     print print_results(results)
 
+def soft_predict_sym(features,means,covars,weights):
+    return 1.-T.nnet.sigmoid(calc_log_prob_gmm(features,means,covars,weights))
+
 def make_features(feature_fn,imgs):
     data = None
     for i in range(len(imgs)):
@@ -103,91 +107,93 @@ def make_features(feature_fn,imgs):
         data[i] = tmp
     return data
 
-def make_gmms(shape,gm_num):
-    gmms = []
-    for i in range(shape[0]):
-        for j in range(shape[1]):
-            gmms.append(mixture.GaussianMixture(covariance_type='diag',
-                               n_components=gm_num,
-                               max_iter=1000,
-                               warm_start=True))
+def map_fit_gmm(args):
+    if(args[0] is None):
+        return None
+    else:
+        return args[0].fit(args[1])
+    
+def fit_gmms(features,labels,gm_num,min_samples_for_gmm,pool):
+    args = []
+    for i in range(features.shape[0]):
+        f = features[i][labels[i] < 30]
+        if(len(f) > min_samples_for_gmm):
+            gmm = mixture.GaussianMixture( covariance_type='diag',
+                                           n_components=gm_num,
+                                           max_iter=1000,
+                                           warm_start=False)
+        else:
+            gmm = None
+        args.append((gmm,f))
+    gmms = pool.map(map_fit_gmm,args)
     return gmms
 
-    
-def fit_gmms(features,gmms,masks = None,out_masks=None):
-    for i in range(features.shape[1]):
-        for j in range(features.shape[2]):
-            f = features[:,i,j]
-            gmm = gmms[i*features.shape[2]+j]
-            if not (masks is None):
-                if(len(f[masks[:,i,j] < 30]) > gmm.n_components*3):
-                    f = f[masks[:,i,j] < 30]
-            
-            if not (masks is None):
-                m = masks[:,i,j] 
-                if(m[(m > 30) & (m< 240)].size > 0.9*m.size):
-                    out_masks[:,i,j] = 128
-                    continue
-                else:
-                    gmm.fit(f)
-            else:
-                gmm.fit(f)
-
-def predict_pixelwise(features,gmms,predict_fn,masks):
-    res = np.zeros_like(features[:,:,:,0])
-    for i in range(features.shape[1]):
-        for j in range(features.shape[2]):
-            m = masks[:,i,j] 
-            if(m[(m > 30) & (m< 240)].size > 0.9*m.size):
-                continue
-            gmm = gmms[i*features.shape[2]+j]
-            res[:,i,j] = predict_fn(features[:,i,j,:],gmm.means_,gmm.covariances_,gmm.weights_)
+def predict(features,gmms,predict_fn):
+    res = np.zeros(features.shape[:2],dtype=np.float32)
+    for i in range(features.shape[0]):
+        gmm = gmms[i]
+        if (not (gmm is None)):
+            res[i] = predict_fn(features[i],gmm.means_,gmm.covariances_,gmm.weights_)
+        else:
+            res[i] = -1
     return res
 
+    
+def calc_aps(predicted,labels):
+    labels = labels.flatten()
+    predicted = predicted.flatten()
+    mask = ((labels < 30) | (labels > 240)) & (predicted >= 0.)
+    true = np.zeros_like(labels,dtype=np.float32)
+    true[labels > 240] = 1.
+    if(len(true[true > 0.9]) == 0):
+        true[mask][0] = 1.
+        predicted[mask][0] = 0.5
+    return average_precision_score(true[mask],predicted[mask])
 
+def fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool,min_samples_for_gmm=50):
+    data = make_features(feature_fn,imgs)
+    flat_data = np.transpose(data,(1,2,0,3)).reshape((-1,data.shape[0],data.shape[-1]))
+    flat_masks = np.transpose(masks,(1,2,0)).reshape((-1,masks.shape[0]))
+    gmms = fit_gmms(flat_data[:,:train_size],flat_masks[:,:train_size],
+                    gm_num=gm_num,
+                    pool=pool,
+                    min_samples_for_gmm=min_samples_for_gmm)
+    prediction = predict(flat_data[:,train_size:],gmms,predict_fn)
+    prediction = np.transpose(prediction,(1,0)).reshape(masks[train_size:].shape)
+    return prediction
 
-def calc_aps(pred,masks):
-    masks = masks.flatten()
-    pred = pred.flatten()
-    m = np.zeros_like(masks)
-    m[masks > 240] = 1.
-    m = m[(masks<30) | (masks > 240)]
-    pred = pred[(masks<30) | (masks > 240)]
-    return average_precision_score(m,1.-pred)
 
 def make_test_as_train(feature_fn,predict_fn,
                        gm_num,
-                      out_dir,
-                      dataset='dataset',
-                      max_frames=400,
-                      im_size = (320,240),
-                      train_size = 100):
+                       out_dir,
+                       dataset='dataset',
+                       max_frames=200,
+                       im_size = (320,240),
+                       train_size = 100):
     try:
         os.mkdir(out_dir)
     except:
         pass
     aps_log = open(out_dir+'/aps.txt','w')
+    pool = Pool(4)
+    print 'run'
     for in_dir,out_dir in iterate_folders(dataset,out_dir):
-        print 'run in ',in_dir
+        print in_dir
         for i,(imgs,masks) in enumerate(iterate_bathced(in_dir,max_frames,im_size)):
+            print 'process dir ' + in_dir
             if((masks[(masks>30) & (masks < 240)].size > 0.9*masks.size) or
                (masks[(masks>240)].size < 10)):
-                print 'skip' 
+                print 'skip'
                 continue
-            print in_dir,'generate_features,',
-            data = make_features(feature_fn,imgs)
-            gmms = make_gmms(imgs.shape[1:-1],gm_num)
-            print 'fit gmms,',
-            fit_gmms(data[:train_size],gmms,masks[:train_size],masks[train_size:])
-            print 'predict,',
-            prediction = predict_pixelwise(data[train_size:],gmms,predict_fn,masks[train_size:])
+            prediction = fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool=pool)
             aps = calc_aps(prediction,masks[train_size:])
-            print in_dir,'aps = ',aps
-            aps_log.write(in_dir+' : '+str(aps)+'\n')
-            aps_log.flush()
-            print 'save'
+            tee(str(in_dir)+' aps = '+str(aps),aps_log)
+            print 'save to '+out_dir
             imgs = imgs[train_size:]
-            masks = masks[train_size:]      
+            masks = masks[train_size:]
+            threshold = 0.5
+            prediction[prediction > threshold] = 1.
+            prediction[prediction <= threshold] = 0.
             prediction = (prediction*255).astype(np.uint8)
             for i in range(len(imgs)):
                 cv2.imwrite(out_dir+'/'+str(i)+'.png',prediction[i])
@@ -195,20 +201,30 @@ def make_test_as_train(feature_fn,predict_fn,
                 cv2.imwrite(out_dir+'/'+str(i)+'_input.jpg',imgs[i])
             break
         print ''
+        break
     print 'test complete'
 
-def test_network(name,network,ndim,epoch,gm_num):
+    
+
+def test_network(name,network,ndim,epoch,gm_num,im_size=(320,240),train_size=100,test_size=300):
     data=T.tensor4()
-    feature_net = network(data=data,ndim=ndim,
-                          model_name='%s%03d'%(name,epoch) if epoch >= 0 else '',
-                          input_shape=(500,3,240,320))
+    feature_net = make_FCN(network,
+                           data=data,
+                           ndim=ndim,
+                           model_name='%s%03d'%(name,epoch) if epoch >= 0 else '',
+                           input_shape=(1,3,im_size[1],im_size[0]))
     feature_sym = L.get_output(feature_net,deterministic=True)
     feature_fn = theano.function([data],feature_sym,allow_input_downcast=True)
     data,m,c,w=T.matrix(),T.matrix(),T.matrix(),T.vector()
     predict_fn = theano.function([data,m,c,w],soft_predict_sym(data,m,c,w),allow_input_downcast=True)
-    make_test_as_train(feature_fn,predict_fn,out_dir='results/'+name,dataset='data/test',gm_num=gm_num)
+    make_test_as_train(feature_fn,predict_fn,
+                       out_dir='results/'+name,
+                       dataset='data/test',
+                       gm_num=gm_num,
+                       max_frames=train_size+test_size,
+                       train_size=train_size,
+                       im_size=im_size)
     calc_metric_all_folders('results/'+name)
-
     
     
 def find_gmm_params(feature_fn,
