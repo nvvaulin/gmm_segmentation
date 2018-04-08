@@ -143,11 +143,8 @@ def calc_aps(predicted,labels):
     labels = labels.flatten()
     predicted = predicted.flatten()
     mask = ((labels < 30) | (labels > 240)) & (predicted >= 0.)
-    true = np.zeros_like(labels,dtype=np.float32)
+    true = np.zeros_like(labels,dtype=np.int32)
     true[labels > 240] = 1.
-    if(len(true[true > 0.9]) == 0):
-        true[mask][0] = 1.
-        predicted[mask][0] = 0.5
     return average_precision_score(true[mask],predicted[mask])
 
 def fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool,min_samples_for_gmm=50):
@@ -201,7 +198,6 @@ def make_test_as_train(feature_fn,predict_fn,
                 cv2.imwrite(out_dir+'/'+str(i)+'_input.jpg',imgs[i])
             break
         print ''
-        break
     print 'test complete'
 
     
