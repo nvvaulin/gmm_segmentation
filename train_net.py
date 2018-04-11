@@ -75,7 +75,7 @@ def train_network(cfg,logger_name='train.log'):
         test_esize = cfg.TRAIN.TEST_EPOCH_SIZE ,
         epochs=cfg.TRAIN.EPOCH_NUM-cfg.TRAIN.EPOCH)
 
-    test_network(cfg.NAME,FCN,cfg.ndim,cfg.TRAIN.EPOCH_NUM-1,cfg.gm_num)
+    test_network(cfg.NAME,cfg.NETWORK,cfg.ndim,cfg.TRAIN.EPOCH_NUM-1,cfg.gm_num,im_size=(320,240),train_size=100,test_size=400)
     tee('################### done #######################\n',logger)
 
 cfg = EasyDict()
@@ -83,9 +83,9 @@ cfg.SEQ_LENGTH = 250
 cfg.TILE_SIZE = 9
 cfg.OUT_SIZE = 1
 cfg.gm_num = 4
-cfg.ndim = 12
-cfg.NAME_PREFIX = ''
-cfg.NETWORK = 'conv4_net'
+cfg.ndim = 4
+cfg.NAME_PREFIX = 'new1_trained'
+cfg.NETWORK = 'conv4_net_dense'
 cfg.NAME=cfg.NAME_PREFIX+cfg.NETWORK+'%d'%(cfg.ndim)
 cfg.TRAIN = EasyDict()
 cfg.TRAIN.EPOCH = 0

@@ -13,6 +13,8 @@ from multiprocessing import Pool
 from utils import tee
 from networks import make_FCN
 from sklearn.metrics import precision_recall_curve
+from sklearn import metrics
+from utils import get_aps
 
 def calc_metrics_imgs(predict,label):
     predict,label = predict.flatten(),label.flatten()
@@ -97,6 +99,8 @@ def calc_metric_all_folders(data_dir):
 
 def soft_predict_sym(features,means,covars,weights):
     return 1.-T.nnet.sigmoid(calc_log_prob_gmm(features,means,covars,weights))
+    #return 1.-(T.clip(calc_log_prob_gmm(features,means,covars,weights),-30.,30.)+30.)/60.
+
 
 def make_features(feature_fn,imgs):
     data = None
@@ -139,13 +143,18 @@ def predict(features,gmms,predict_fn):
     return res
 
     
-def calc_aps(predicted,labels):
+def calc_m(predicted,labels,mertics):
     labels = labels.flatten()
     predicted = predicted.flatten()
     mask = ((labels < 30) | (labels > 240)) & (predicted >= 0.)
     true = np.zeros_like(labels,dtype=np.int32)
-    true[labels > 240] = 1.
-    return average_precision_score(true[mask],predicted[mask])
+    true[labels > 240] = 1
+    true = true[mask]
+    predicted = predicted[mask]
+    res = dict()
+    for k in mertics.keys():
+        res[k] = mertics[k](true,predicted)
+    return res
 
 def fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool,min_samples_for_gmm=50):
     data = make_features(feature_fn,imgs)
@@ -159,6 +168,11 @@ def fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool,min_
     prediction = np.transpose(prediction,(1,0)).reshape(masks[train_size:].shape)
     return prediction
 
+def bin_score(score,threshold = 0.5):
+    res = np.zeros_like(score,dtype=np.int32)
+    res[score > threshold] = 1
+    return res
+
 
 def make_test_as_train(feature_fn,predict_fn,
                        gm_num,
@@ -166,25 +180,27 @@ def make_test_as_train(feature_fn,predict_fn,
                        dataset='dataset',
                        max_frames=200,
                        im_size = (320,240),
-                       train_size = 100):
+                       train_size = 100,
+                       metrics = {'aps' : get_aps,
+                                  'f1' : lambda y,s : metrics.f1_score(y,bin_score(s)),
+                                  'acc' : lambda y,s : metrics.accuracy_score(y,bin_score(s))}):
     try:
         os.mkdir(out_dir)
     except:
         pass
-    aps_log = open(out_dir+'/aps.txt','w')
+    logger = open(out_dir+'/aps.txt','w')
     pool = Pool(4)
-    print 'run'
     for in_dir,out_dir in iterate_folders(dataset,out_dir):
-        print in_dir
+        tee(in_dir+':',logger)
         for i,(imgs,masks) in enumerate(iterate_bathced(in_dir,max_frames,im_size)):
-            print 'process dir ' + in_dir
             if((masks[(masks>30) & (masks < 240)].size > 0.9*masks.size) or
                (masks[(masks>240)].size < 10)):
                 print 'skip'
                 continue
             prediction = fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool=pool)
-            aps = calc_aps(prediction,masks[train_size:])
-            tee(str(in_dir)+' aps = '+str(aps),aps_log)
+            res_metrics = calc_m(prediction,masks[train_size:],metrics)
+            for k in res_metrics:
+                tee(k+' : '+str(res_metrics[k]),logger)
             print 'save to '+out_dir
             imgs = imgs[train_size:]
             masks = masks[train_size:]

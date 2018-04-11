@@ -195,6 +195,19 @@ def get_pp_pn(l,pred):
     pp,pn = np.array(pp),np.array(pn)
     return (np.abs(pn[1:]-pn[:-1])*(pp[1:]+pp[:-1])/2.).sum()
 
+
+def get_aps(l,pred):
+    o = np.ones(len(l))
+    pn = []
+    pp = []
+    R = pred[::max(len(pred)//100,1)].copy()
+    R  = np.sort(R)
+    for r in R:
+        pn.append(o[(pred > r)&(l>0.9)].sum()/o[l>0.9].sum())
+        pp.append(o[(pred < r)&(l<0.1)].sum()/o[l<0.1].sum())
+    pp,pn = np.array(pp),np.array(pn)
+    return (np.abs(pn[1:]-pn[:-1])*(pp[1:]+pp[:-1])/2.).sum()
+
 def tee(s,logger):
     s = str(s)
     print s
