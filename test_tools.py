@@ -12,7 +12,7 @@ import theano
 from multiprocessing import Pool
 from utils import tee
 from networks import make_FCN
-from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import precision_recall_curve,average_precision_score
 from sklearn import metrics
 from utils import get_aps
 
@@ -181,7 +181,7 @@ def make_test_as_train(feature_fn,predict_fn,
                        max_frames=200,
                        im_size = (320,240),
                        train_size = 100,
-                       metrics = {'aps' : get_aps,
+                       metrics = {'aps' : average_precision_score,
                                   'f1' : lambda y,s : metrics.f1_score(y,bin_score(s)),
                                   'acc' : lambda y,s : metrics.accuracy_score(y,bin_score(s))}):
     try:
@@ -223,20 +223,25 @@ def test_network(name,network,ndim,epoch,gm_num,im_size=(320,240),train_size=100
     feature_net = make_FCN(network,
                            data=data,
                            ndim=ndim,
-                           model_name='%s%03d'%(name,epoch) if epoch >= 0 else '',
+                           model_name='%s/models/%03d'%(name,epoch) if epoch >= 0 else '',
                            input_shape=(1,3,im_size[1],im_size[0]))
     feature_sym = L.get_output(feature_net,deterministic=True)
     feature_fn = theano.function([data],feature_sym,allow_input_downcast=True)
     data,m,c,w=T.matrix(),T.matrix(),T.matrix(),T.vector()
     predict_fn = theano.function([data,m,c,w],soft_predict_sym(data,m,c,w),allow_input_downcast=True)
+    try:
+        os.mkdir('%s/test'%(name))
+    except:
+        pass
+    
     make_test_as_train(feature_fn,predict_fn,
-                       out_dir='results/'+name,
+                       out_dir='%s/test'%(name),
                        dataset='data/test',
                        gm_num=gm_num,
                        max_frames=train_size+test_size,
                        train_size=train_size,
                        im_size=im_size)
-    calc_metric_all_folders('results/'+name)
+    calc_metric_all_folders('%s/test'%(name))
     
     
 def find_gmm_params(feature_fn,

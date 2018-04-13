@@ -82,7 +82,7 @@ def make_FCN(FCN_name,data,ndim,model_name='',input_shape = (None,3,None,None),p
                                name='data')
     res = FCN(datal,ndim=ndim,pad=pad)
     if(model_name!=''):
-        tee('load model '+'models/'+model_name,logger)
-        load_weights(res,'models/'+model_name)
+        tee('load model '+model_name,logger)
+        load_weights(res,model_name)
     tee(get_network_str(res,incomings=True,outgoings=True),logger)
     return res

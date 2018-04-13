@@ -10,6 +10,7 @@ from theano_utils import split,histogram_loss,split_tr_p_n
 from lasagne import layers as L
 import lasagne
 from utils import tee
+import os
 
 def make_classifier(X,label,non_learn_params):
     X = X.reshape((-1,X.shape[-1]))
@@ -20,7 +21,7 @@ def make_classifier(X,label,non_learn_params):
                     use_approx_grad=non_learn_params['use_approx_grad'])
     p_n = calc_log_prob_gmm(x_n,m,c,w)
     p_p = calc_log_prob_gmm(x_p,m,c,w)
-    loss = histogram_loss(p_n,p_p,
+    loss = histogram_loss(T.max(p_n).reshape((1,)),p_p,
                           non_learn_params['min_cov'],
                           non_learn_params['histogram_bins'],
                           non_learn_params['width'])[0]
@@ -97,11 +98,20 @@ def fit(name,
         epochs,train_esize,test_esize,
         metrix,update_params,use_ohem=False,
         start_epoch = 0):
+    try:
+        os.mkdir('%s/models'%(name))
+    except Exception as e:
+        print 'cannot create dir %s/models'%(name)
+        print e
     if(use_ohem):
         ohem = []
     else:
         ohem = None
-    save_weights(net,'models/%s%03d'%(name,0))
+    save_weights(net,'%s/models/%03d'%(name,0))
+    
+    for j in range(start_epoch):
+        update_params(j,non_learn_params)
+        
     for j in range(start_epoch,epochs):
         update_params(j,non_learn_params)
         tee('train',logger)
@@ -109,7 +119,7 @@ def fit(name,
         iterate_batches(train_fn,\
                         lambda : data_generator(train_loader,epoch_size=train_esize,shuffle=True),
                        j,metrix,logger = logger,ohem=ohem)
-        save_weights(net,'models/%s%03d'%(name,j))
+        save_weights(net,'%s/models/%03d'%(name,j))
         tee('test',logger)
         np.random.seed(0)
         iterate_batches(test_fn,\
