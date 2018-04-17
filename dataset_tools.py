@@ -21,19 +21,6 @@ def resize(im,mask,size):
         return np.array(pi)
     return _resize(im),_resize(mask)
 
-def iterate_folders(dataset,out_dir=None):    
-    for subsets in os.listdir(dataset):
-        if not(os.path.isdir(dataset+'/'+subsets)):
-            continue
-        for video in os.listdir(dataset+'/'+subsets):
-            if(out_dir is None):
-                yield dataset+'/'+subsets+'/'+video
-            else:
-                folder = out_dir+'/'+subsets+'/'+video
-                make_path(folder)
-                yield dataset+'/'+subsets+'/'+video,folder
-
-
 def ties_to_image(ties,cols=None,rows=None):
     if(cols is None):
         length = len(ties)
@@ -68,33 +55,53 @@ def image_to_ties(im,tie_w,tie_h):
         return ties
     
 
+def iterate_folders(dataset):
+    '''
+    iterate over all dataset videos
+    dataset : root path to dataset
+    '''
+    for subsets in os.listdir(dataset):
+        if not(os.path.isdir(dataset+'/'+subsets)):
+            continue
+        for video in os.listdir(dataset+'/'+subsets):
+            yield dataset+'/'+subsets+'/'+video
+                
 def iterate_video(folder,skip_first_unlabled=True):
-    all_img_num = len([i for i in os.listdir(folder+'/input') if (i[-4:] == '.jpg')])
+    '''
+    iterate over frames of video
+    folder : path to video
+    skip_first_unlabled : skip unlabeled frames at the beginning and end of video
+    '''
+    
     if(skip_first_unlabled):
-        f = int(open(folder+'/temporalROI.txt').read().split(' ')[0])
+        f = [int(i) for i in open(folder+'/temporalROI.txt').read().split(' ')]
     else:
-        f = 1
+        img_range = range(1,len([i for i in os.listdir(folder+'/input') if (i[-4:] == '.jpg')])+1)
         
     for i in range(f,all_img_num+1):
         name='%06d'%(i)
         mask = cv2.imread(folder+'/groundtruth/gt'+name+'.png',0)        
         im = cv2.imread(folder+'/input/in'+name+'.jpg')
-        yield im,mask
+        yield name,im,mask
 
 def iterate_bathced(folder,num_frames,size=None):
     imgs = None
     masks = None
-    for i,(im,mask) in enumerate(iterate_video(folder)):
+    frame_names = None
+    for i,(name,im,mask) in enumerate(iterate_video(folder,True)):
         if(size is None):
             size = im.shape[1],im.shape[0]
         im,mask = resize(im,mask,size)
         if(imgs is None):
             imgs  = np.zeros((num_frames,size[1],size[0],3),dtype=np.uint8)
             masks = np.zeros((num_frames,size[1],size[0]),dtype=np.uint8)
+            frame_names = ['' for i in range(num_frames)]
+            
         imgs[i % num_frames] = im
         masks[i % num_frames] = mask
+        frame_names[i % num_frames] = name
         if((i+1)%num_frames == 0):
-            yield imgs,masks
+            yield frame_names,imgs,masks
 
 def make_path(p):
     dirs = p.split('/')
@@ -112,3 +119,13 @@ def draw(ties,mask,cols=None,rows=None):
     plt.figure(figsize=(10,10))
     plt.imshow(np.concatenate((im,mask),1))
     plt.show()
+    
+
+def binarise_prediction(prediction,threshold):
+    result = np.zeros_like(prediction,dtype=np.uint8)
+    result[prediction < -0.001] = 256/2
+    result[prediction > threshold] = 255
+    return result
+
+def get_labeled_mask(label):
+    return (label < 10) | (label > 240)

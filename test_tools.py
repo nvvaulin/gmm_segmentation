@@ -1,7 +1,6 @@
 import os
 import cv2
 import numpy as np
-#from gmm_bg_substructor import BgSubstructor
 from sklearn import mixture
 from sklearn.metrics import average_precision_score
 from dataset_tools import *
@@ -16,207 +15,143 @@ from sklearn.metrics import precision_recall_curve,average_precision_score
 from sklearn import metrics
 from utils import get_aps
 
-def calc_metrics_imgs(predict,label):
-    predict,label = predict.flatten(),label.flatten()
-    mask = (label>230)|(label < 50)
-    p = (predict.astype(np.float32)/255.)[mask]
-    y = (label.astype(np.float32)/255.)[mask]
-    y[y>0.5] = 1.
-    y[y<=0.5] = 0.
-    bp = np.zeros_like(p)
-    bp[p>0.5] = 1.
-    TP = (bp*y).sum()
-    TN = ((1-bp)*(1-y)).sum()
-    FP = (bp*(1.0-y)).sum()
-    FN = ((1.0-bp)*y).sum()
-    AveragePrecision = 0#average_precision_score(y,p)
-    return np.array([TP,TN,FP,FN],dtype=np.int64),AveragePrecision
+class BGAlgorithm:
+    def __init__(self):
+        pass
     
+    def train_batched(self,data,labels):
+        pass
+    
+    def predict_batched(self,data):
+        raise NotImplementedError
 
-def print_results(results):
-    s = ''
-    for k in results.keys():
-        s=s+k+str(': ')+str(results[k])+'\n'
-    return s
-
-def calc_metrics_folder(data_dir):
-    S = np.array([0,0,0,0],dtype=np.int64)
-    AveragePrecision = 0.0
-    nums = [int(i[:-4]) for i in os.listdir(data_dir) if i.find('true') < 0 and  i.find('input') < 0]
-    for i in nums:
-        m = cv2.imread(data_dir+'/%i_true.png'%(i))
-        p = cv2.imread(data_dir+'/%i.png'%(i))
-        _s = calc_metrics_imgs(p,m)
-        AveragePrecision += _s[1]
-        S+=_s[0]
         
-    TP,TN,FP,FN = S[0],S[1],S[2],S[3]
-    if(S.min() <= 0):
-        results = dict( AveragePrecision = 0,\
-                        Recall = np.nan,\
-                        Sp = np.nan,\
-                        FPR = np.nan,\
-                        FNR = np.nan,\
-                        PWC =  np.nan,\
-                        F_Measure  =  np.nan,\
-                        Precision  = np.nan)
-    else:
-        results = dict( AveragePrecision = AveragePrecision/float(len(nums)),\
-                        Recall = TP / float(TP + FN),\
-                        Sp = TN / float(TN + FP),\
-                        FPR = FP / float(FP + TN),\
-                        FNR = FN / float(TP + FN),\
-                        PWC =  100 * (FN + FP) / float(TP + FN + FP + TN),\
-                        F_Measure  =  (2 * (TP / float(TP + FP)) * (TP / float(TP + FN))) / (TP / float(TP + FP) +  TP / float(TP + FN)),\
-                        Precision  = TP / float(TP + FP))
-
-    print data_dir
-    print print_results(results)
-    return results
-
-def calc_metric_all_folders(data_dir):
-    res = []
-    f = open(data_dir+'.txt','w')
-    list_dirs = []
-    for j in os.listdir(data_dir):
-        if(os.path.isdir(data_dir+'/'+j)):
-            list_dirs = list_dirs+[data_dir+'/'+j+'/'+i for i in os.listdir(data_dir+'/'+j)]
-    
-    for folder in list_dirs:
-        results = calc_metrics_folder(folder)
-        if not (results is None):
-            res.append(results)
-            f.write(folder+'\n')
-            f.write(print_results(results))
-    results = dict()
-    for k in res[0].keys():
-        results[k] = np.array([i[k] for i in res if np.isfinite(i[k])]).mean()
-    f.write('total result\n')
-    f.write(print_results(results))
-    f.close()
-    print 'total result'
-    print print_results(results)
-
-def soft_predict_sym(features,means,covars,weights):
-    return 1.-T.nnet.sigmoid(calc_log_prob_gmm(features,means,covars,weights))
-    #return 1.-(T.clip(calc_log_prob_gmm(features,means,covars,weights),-30.,30.)+30.)/60.
-
-
-def make_features(feature_fn,imgs):
-    data = None
-    for i in range(len(imgs)):
-        tmp = feature_fn(np.transpose(imgs[i:i+1],(0,3,1,2)).astype(np.float32))[0]
-        if(data is None):
-            data = np.empty((len(imgs),)+tmp.shape,dtype=np.float32)
-        data[i] = tmp
-    return data
-
 def map_fit_gmm(args):
     if(args[0] is None):
         return None
     else:
         return args[0].fit(args[1])
     
-def fit_gmms(features,labels,gm_num,min_samples_for_gmm,pool):
-    args = []
-    for i in range(features.shape[0]):
-        f = features[i][labels[i] < 30]
-        if(len(f) > min_samples_for_gmm):
-            gmm = mixture.GaussianMixture( covariance_type='diag',
-                                           n_components=gm_num,
-                                           max_iter=1000,
-                                           warm_start=False)
-        else:
-            gmm = None
-        args.append((gmm,f))
-    gmms = pool.map(map_fit_gmm,args)
-    return gmms
-
-def predict(features,gmms,predict_fn):
-    res = np.zeros(features.shape[:2],dtype=np.float32)
-    for i in range(features.shape[0]):
-        gmm = gmms[i]
-        if (not (gmm is None)):
-            res[i] = predict_fn(features[i],gmm.means_,gmm.covariances_,gmm.weights_)
-        else:
-            res[i] = -1
-    return res
-
+class GMMAlgorithm(BGAlgorithm):
+    def __init__(self,FCN,gm_num,pool=Pool(4)):
+        super(GMMAlgorithm,self).__init__()
+        self.gm_num = gm_num
+        self.pool = pool
+        self.feature_fn = None
+        self.reset()
+        self.im_size = (-1,-1)
+        self.predict_fn = self._make_predict_fn()
+        self.min_samples_for_gmm = self.gm_num=10
+        
+    def _make_feature_fn(self,im_size):        
+        data=T.tensor4()
+        feature_net = FCN(data=data,input_shape=(1,3,im_size[1],im_size[0]))
+        feature_sym = L.get_output(feature_net,deterministic=True)
+        return theano.function([data],feature_sym,allow_input_downcast=True)
+        
+    def _make_predict_fn(self)
+        data,m,c,w=T.matrix(),T.matrix(),T.matrix(),T.vector()
+        return theano.function([data,m,c,w],1.-T.nnet.sigmoid(calc_log_prob_gmm(data,m,c,w)),allow_input_downcast=True)
+        
+    def _make_features(self,imgs):
+        assert(imgs.shape[3] == 3)
+        if(self.im_size[0] != imgs.shape[2] or self.im_size[1] != imgs.shape[1]):
+            self.im_size = imgs.shape[2],imgs.shape[1]
+            self.feature_fn = self._make_feature_fn(self.im_size)
+        data = None
+        for i in range(len(imgs)):
+            tmp = feature_fn(np.transpose(imgs[i:i+1],(0,3,1,2)).astype(np.float32))[0]
+            if(data is None):
+                data = np.empty((len(imgs),)+tmp.shape,dtype=np.float32)
+            data[i] = tmp
+        return data
     
-def calc_m(predicted,labels,mertics):
-    labels = labels.flatten()
-    predicted = predicted.flatten()
-    mask = ((labels < 30) | (labels > 240)) & (predicted >= 0.)
-    true = np.zeros_like(labels,dtype=np.int32)
-    true[labels > 240] = 1
-    true = true[mask]
-    predicted = predicted[mask]
-    res = dict()
-    for k in mertics.keys():
-        res[k] = mertics[k](true,predicted)
-    return res
-
-def fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool,min_samples_for_gmm=50):
-    data = make_features(feature_fn,imgs)
-    flat_data = np.transpose(data,(1,2,0,3)).reshape((-1,data.shape[0],data.shape[-1]))
-    flat_masks = np.transpose(masks,(1,2,0)).reshape((-1,masks.shape[0]))
-    gmms = fit_gmms(flat_data[:,:train_size],flat_masks[:,:train_size],
-                    gm_num=gm_num,
-                    pool=pool,
-                    min_samples_for_gmm=min_samples_for_gmm)
-    prediction = predict(flat_data[:,train_size:],gmms,predict_fn)
-    prediction = np.transpose(prediction,(1,0)).reshape(masks[train_size:].shape)
-    return prediction
+    def _predict(self,features):
+        res = np.zeros(features.shape[:2],dtype=np.float32)
+        for i in range(features.shape[0]):
+            gmm = gmms[i]
+            if (not (gmm is None)):
+                res[i] = self.predict_fn(features[i],gmm.means_,gmm.covariances_,gmm.weights_)
+            else:
+                res[i] = -1
+        return res    
+        
+    def _fit_gmms(self,features,labels):
+        args = []
+        for i in range(features.shape[0]):
+            f = features[i][labels[i] < 30]
+            if(len(f) > min_samples_for_gmm):
+                gmm = mixture.GaussianMixture( covariance_type='diag',
+                                               n_components=gm_num,
+                                               max_iter=1000,
+                                               warm_start=False)
+            else:
+                gmm = None
+            args.append((gmm,f))
+            
+        if(self.pool is None):
+            gmms = map(map_fit_gmm,args)
+        else:
+            gmms = self.pool.map(map_fit_gmm,args)
+        return gmms
+    
+    def _flatten(self,features,labels):
+        flat_features = np.transpose(features,(1,2,0,3)).reshape((-1,features.shape[0],features.shape[-1]))
+        flat_labels = np.transpose(labels,(1,2,0)).reshape((-1,labels.shape[0]))
+        return flat_features,flat_labels
+        
+    def reset():
+        pass
+    
+    def train_batched(self,imgs,labels):
+        features = self._make_features(imgs)
+        flat_features,flat_labels = self._flatten(features,labels)
+        self.gmms = self._fit_gmms(flat_features,flat_labels)
+      
+    def predict_batched(self,imgs):
+        features = self._make_features(imgs)
+        flat_features,flat_labels = self._flatten(features)
+        flat_prediction = self._predict(flat_features)        
+        prediction = np.transpose(flat_prediction,(1,0)).reshape(imgs.shape[:-1])
+        return prediction
 
 def bin_score(score,threshold = 0.5):
     res = np.zeros_like(score,dtype=np.int32)
     res[score > threshold] = 1
     return res
 
-
-def make_test_as_train(feature_fn,predict_fn,
-                       gm_num,
-                       out_dir,
-                       dataset='dataset',
-                       max_frames=200,
-                       im_size = (320,240),
-                       train_size = 100,
-                       metrics = {'aps' : average_precision_score,
-                                  'f1' : lambda y,s : metrics.f1_score(y,bin_score(s)),
-                                  'acc' : lambda y,s : metrics.accuracy_score(y,bin_score(s))}):
-    try:
-        os.mkdir(out_dir)
-    except:
-        pass
-    logger = open(out_dir+'/aps.txt','w')
-    pool = Pool(4)
-    for in_dir,out_dir in iterate_folders(dataset,out_dir):
+def make_test(algorithm,
+              out_dir=None,
+              dataset='dataset',
+              train_size = 100,
+              test_size=200,
+              im_size = None,
+              metrics = {'aps' : average_precision_score,
+                         'f1' : lambda y,s : metrics.f1_score(y,bin_score(s)),
+                         'acc' : lambda y,s : metrics.accuracy_score(y,bin_score(s))},
+              logger=None):
+        
+    for in_dir in iterate_folders(dataset):
         tee(in_dir+':',logger)
-        for i,(imgs,masks) in enumerate(iterate_bathced(in_dir,max_frames,im_size)):
-            if((masks[(masks>30) & (masks < 240)].size > 0.9*masks.size) or
-               (masks[(masks>240)].size < 10)):
-                print 'skip'
-                continue
-            prediction = fit_and_predict(imgs,masks,feature_fn,predict_fn,train_size,gm_num,pool=pool)
-            res_metrics = calc_m(prediction,masks[train_size:],metrics)
-            for k in res_metrics:
-                tee(k+' : '+str(res_metrics[k]),logger)
-            print 'save to '+out_dir
-            imgs = imgs[train_size:]
-            masks = masks[train_size:]
-            threshold = 0.5
-            prediction[prediction > threshold] = 1.
-            prediction[prediction <= threshold] = 0.
-            prediction = (prediction*255).astype(np.uint8)
-            for i in range(len(imgs)):
-                cv2.imwrite(out_dir+'/'+str(i)+'.png',prediction[i])
-                cv2.imwrite(out_dir+'/'+str(i)+'_true.png',masks[i])
-                cv2.imwrite(out_dir+'/'+str(i)+'_input.jpg',imgs[i])
+        algorithm.reset()
+        for names,imgs,labels in iterate_bathced(in_dir,test_size+train_size,im_size):                
+            test_imgs,test_labels = imgs[train_size:],labels[train_size:]
+            train_imgs,train_labels = imgs[:train_size],labels[:train_size]
+            test_names = names[train_size:]
+            imgs,labels = None,None            
+            algorithm.train_batched(train_imgs,train_labels)
+            prediction = algorithm.predict_batched(test_imgs)
+            binary_prediction = binarise_prediction(prediction,0.5)
+            mask = get_label_mask(label) & get_label_mask(binary_prediction)
+            for _name,_metric in metrics:
+                tee('%s : %f'%(_name,_metric(labels[mask],prediction[mask])),logger)
+            if(not out_dir is None):
+                make_path(out_dir+in_dir[len(dataset):])
+                for i in range(len(test_imgs)):
+                    cv2.imwrite(out_dir+'/'+test_names[i]+'.png',binary_prediction[i])
+                    cv2.imwrite(out_dir+'/'+test_names[i]+'_true.png',test_labels[i])
+                    cv2.imwrite(out_dir+'/'+test_names[i]+'_input.jpg',test_imgs[i])
             break
-        print ''
-    print 'test complete'
-
-    
 
 def test_network(name,network,ndim,epoch,gm_num,im_size=(320,240),train_size=100,test_size=300):
     data=T.tensor4()
@@ -244,140 +179,3 @@ def test_network(name,network,ndim,epoch,gm_num,im_size=(320,240),train_size=100
     calc_metric_all_folders('%s/test'%(name))
     
     
-def find_gmm_params(feature_fn,
-              dataset='../gmm_segmentation/test_dataset',
-              max_frames=300,
-              im_size = (320//2,240//2),gm_num=4):
-    all_covars = []
-    all_weights = []
-    all_comp = []
-    all_masks = []
-    for k,in_dir in enumerate(iterate_folders(dataset)):
-        for i,(imgs,masks) in enumerate(iterate_bathced(in_dir,max_frames,im_size)):
-            print in_dir,'generate_features,',
-            data = make_features(feature_fn,imgs)
-            gmms = make_gmms(imgs.shape[1:-1],gm_num)
-            print 'fit gmms'
-            fit_gmms(data,gmms,None)
-            cov = np.empty((len(gmms),)+gmms[0].covariances_.shape,dtype=np.float32)
-            weights = np.empty((len(gmms),len(gmms[0].weights_)),dtype=np.float32)
-            dists = np.empty((len(gmms),len(imgs),len(gmms[0].weights_)),dtype=np.float32)
-            data = data.reshape((len(imgs),-1,gmms[i].means_.shape[1]))
-            for j in range(len(gmms)):
-                cov[j] = gmms[j].covariances_
-                weights[j] = gmms[j].weights_
-                dists[j] = ((data[:,j,None,:]-gmms[j].means_[None,:,:])**2).sum(-1)
-            print 'cov',cov.mean(),cov.std()
-            masks = masks.reshape((len(masks),-1))
-            masks = np.transpose(masks,(1,0))
-            print 'cov bg',dists[masks < 0.5].min(-1).mean(),dists[masks < 0.1].min(-1).std()
-            print 'cov motion',dists[masks > 0.5].min(-1).mean(),dists[masks > 0.9].min(-1).std()
-            print 'std motion',data[masks > 0.9].std()
-            break
-    print 'test complete'
-    
-    
-    
-def make_bgs_test(feature_fn,params,out_name,dataset='test_dataset',max_l = 1000,im_size=None,verbose=False,skip_frames=200):
-    def make_bgs_features(feature_fn,x):
-        return feature_fn(np.transpose(x,(0,3,1,2)))[0]
-    out_dir = 'results/'+out_name+'_'+params['algorithm']
-    if(not os.path.exists(out_dir)):
-        os.mkdir(out_dir)
-    f = open('params.txt','w')
-    f.write('params\n'+str(params)+'\n')
-    f.write('max_l = %i,skip_frames=%i')
-    f.close()
-    jj = 0
-    try:
-        for d_in,d_out in iterate_folders(dataset,out_dir):
-            jj+=1
-            if(jj<1):
-                continue
-            try:
-                bgs = BgSubstructor(params)
-                i = 0
-                prev =None
-                for im,mask in iterate_video(d_in,skip_first_unlabled=True):
-                    print '%s %d                   \r'%(d_in,i),
-                    if not (im_size is None):
-                        im,mask = resize(im,mask,im_size)
-                    if(prev is None):
-                        prev = im
-                        continue
-                    #tmp = np.concatenate((im[np.newaxis],prev[np.newaxis]),0)
-                    features = make_bgs_features(feature_fn,im.astype(np.float32))
-                    prev = im
-                    pred = bgs.update(features.astype(np.float32),im.astype(np.float32))
-                    cv2.imwrite(d_out+'/%d.png'%(i),pred)
-                    cv2.imwrite(d_out+'/%d_true.png'%(i),mask)
-                    cv2.imwrite(d_out+'/%d_input.png'%(i),im)
-                    if(verbose):
-                        cv2.imshow('pred',pred)
-                        cv2.imshow('true',mask)
-                        cv2.imshow('input',im)
-                        cv2.waitKey(1)
-                    if(i >= max_l):
-                        break
-                    i+=1
-                print '%s %d\r'%(d_in,i),
-            finally:
-                del bgs
-    finally:
-        if(verbose):
-            cv2.destroyAllWindows()
-    print 'done'
-    
-# params = { 'algorithm': 'grimson_gmm', 
-#             'low': 1.,#*24*24,
-#             'high': 3,#.*24*24,
-#             'alpha': 0.01,
-#             'max_modes': 5,
-#             'channels': 12,
-#             'variance': .01,
-#             'bg_threshold': 0.075,
-#             'min_variance': .005,
-#             'variance_factor': 1.}    
-    
-# params = { 
-#     'algorithm': 'FTSG', 
-#     'th': 30, 
-#     'nDs': 5,
-#     'nDt': 5,
-#     'nAs': 5,
-#     'nAt': 5,
-#     'bgAlpha': 0.004,
-#     'fgAlpha': 0.05,
-#     'tb': 15,
-#     'tf': 0.00001,
-#     'tl': 0.01,
-#     'init_variance' : 0.01
-# } 
-# make_bgs_test(feature_fn,
-#                out_name=cfg.NAME,
-#                params=params,
-#                dataset='../gmm_segmentation/test_dataset',
-#                im_size=(320,240),
-#                verbose=True)
-
-
-# params = { 
-#     'algorithm': 'FTSG', 
-#     'th': 30, 
-#     'nDs': 5,
-#     'nDt': 5,
-#     'nAs': 5,
-#     'nAt': 5,
-#     'bgAlpha': 0.004,
-#     'fgAlpha': 0.5,
-#     'tb': 4,
-#     'tf': 20,
-#     'tl': 0.1,
-#     'init_variance': 15
-# }
-# make_bgs_test(lambda x : np.transpose(x,(0,2,3,1)),
-#                params,
-#                out_name='baseline',
-#                dataset='../gmm_segmentation/test_dataset',
-#                im_size=(320,240),
-#                verbose=True)
