@@ -7,6 +7,7 @@ import theano.tensor as T
 import lasagne
 from lasagne import layers as L
 from lasagne.nonlinearities import rectify
+import sys
 
 def get_network_str(layer, get_network=True, incomings=False, outgoings=False):
     """ Returns a string representation of the entire network contained under this layer.
@@ -182,36 +183,21 @@ class TrivialInit(lasagne.init.Initializer):
                     W[i,i+shape[0]*k,1,1] += 1./f
         return theano.shared(W)
 
-    
-def get_pp_pn(l,pred):
-    o = np.ones(len(l))
-    pn = []
-    pp = []
-    R = pred[::max(len(pred)//100,1)].copy()
-    R  = np.sort(R)
-    for r in R:
-        pn.append(o[(pred > r)&(l>0.9)].sum()/o[l>0.9].sum())
-        pp.append(o[(pred < r)&(l<0.1)].sum()/o[l<0.1].sum())
-    pp,pn = np.array(pp),np.array(pn)
-    return (np.abs(pn[1:]-pn[:-1])*(pp[1:]+pp[:-1])/2.).sum()
-
-
-def get_aps(l,pred):
-    o = np.ones(len(l))
-    pn = []
-    pp = []
-    R = pred[::max(len(pred)//100,1)].copy()
-    R  = np.sort(R)
-    for r in R:
-        pn.append(o[(pred > r)&(l>0.9)].sum()/o[l>0.9].sum())
-        pp.append(o[(pred < r)&(l<0.1)].sum()/o[l<0.1].sum())
-    pp,pn = np.array(pp),np.array(pn)
-    return (np.abs(pn[1:]-pn[:-1])*(pp[1:]+pp[:-1])/2.).sum()
-
-def tee(s,logger):
-    s = str(s)
-    print s
-    if( not (logger is None)):
-        logger.write(s+'\n')
-        logger.flush()
-
+  
+class Logger(object):
+    def __init__(self,*args):
+        self.outputs = []
+        for a in args:
+            if(a == 'std'):
+                self.outputs.append(sys.stdout)
+            else:
+                self.outputs.append(open(a,'a'))
+    def log(self,*args,**kwargs):
+        if('end' in kwargs):
+            end = kwargs['end']
+        else:
+            end = '\n'
+        s = ' '.join([str(a) for a in args])
+        for o in self.outputs:
+            o.write(s+end)
+            o.flush()

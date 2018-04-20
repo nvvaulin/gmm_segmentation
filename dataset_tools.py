@@ -75,10 +75,11 @@ def iterate_video(folder,skip_first_unlabled=True):
     
     if(skip_first_unlabled):
         f = [int(i) for i in open(folder+'/temporalROI.txt').read().split(' ')]
+        img_range = range(f[0],f[1])
     else:
         img_range = range(1,len([i for i in os.listdir(folder+'/input') if (i[-4:] == '.jpg')])+1)
         
-    for i in range(f,all_img_num+1):
+    for i in img_range:
         name='%06d'%(i)
         mask = cv2.imread(folder+'/groundtruth/gt'+name+'.png',0)        
         im = cv2.imread(folder+'/input/in'+name+'.jpg')
@@ -95,7 +96,7 @@ def iterate_bathced(folder,num_frames,size=None):
         if(imgs is None):
             imgs  = np.zeros((num_frames,size[1],size[0],3),dtype=np.uint8)
             masks = np.zeros((num_frames,size[1],size[0]),dtype=np.uint8)
-            frame_names = ['' for i in range(num_frames)]
+            frame_names = ['' for j in range(num_frames)]
             
         imgs[i % num_frames] = im
         masks[i % num_frames] = mask
@@ -122,10 +123,27 @@ def draw(ties,mask,cols=None,rows=None):
     
 
 def binarise_prediction(prediction,threshold):
-    result = np.zeros_like(prediction,dtype=np.uint8)
-    result[prediction < -0.001] = 256/2
-    result[prediction > threshold] = 255
+    '''
+    prediction : np.array [0,1] if <0 -> not a predicion
+    '''
+    result = np.zeros_like(prediction,dtype=np.float32)
+    result[prediction < -0.001] = 0.5
+    result[prediction > threshold] = 1.
     return result
 
 def get_labeled_mask(label):
-    return (label < 10) | (label > 240)
+    '''
+    label : np.array of 0=negative,1=positive
+    return (label < 0.01) | (label > 0.99)
+    '''
+    return (label < 0.01) | (label > 0.99)
+
+def binarise_label(label):
+    '''
+    label : np.array, <30-> 0, > 240 -> 1
+    '''
+    result = np.zeros_like(label,dtype=np.float32)+0.5
+    result[label < 10] = 0
+    result[label > 240] = 1.
+    return result
+    
