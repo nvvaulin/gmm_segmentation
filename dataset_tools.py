@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 
-def clip_ties(X,o_size):
+def clip_patches(X,o_size):
         t_size = X.shape[-2]
         if(len(X.shape) == 3):
             return X[:,(t_size-o_size)//2:(t_size+o_size)//2,\
@@ -21,38 +21,38 @@ def resize(im,mask,size):
         return np.array(pi)
     return _resize(im),_resize(mask)
 
-def ties_to_image(ties,cols=None,rows=None):
+def patches_to_image(patches,cols=None,rows=None):
     if(cols is None):
-        length = len(ties)
+        length = len(patches)
         cols = int(np.ceil(np.sqrt(length)))
         rows = int(np.ceil(float(length)/float(cols)))
-    if(len(ties.shape) == 3):
+    if(len(patches.shape) == 3):
         c = 1
-        l,h,w = ties.shape
+        l,h,w = patches.shape
     else:
-        l,h,w,c = ties.shape
-    ties = ties[:min(l,cols*rows)]
-    im = np.zeros(((rows*cols,)+ties.shape[1:]),dtype=ties.dtype)
-    im[:len(ties)] = ties
+        l,h,w,c = patches.shape
+    patches = patches[:min(l,cols*rows)]
+    im = np.zeros(((rows*cols,)+patches.shape[1:]),dtype=patches.dtype)
+    im[:len(patches)] = patches
     im = np.transpose(im.reshape((rows,cols,h,w,c)),(0,2,1,3,4)).reshape((rows*h,cols*w,c))
     if(c==1):
         return im[...,0]
     else:
         return im
                 
-def image_to_ties(im,tie_w,tie_h):
-    h,w = tie_h,tie_w
+def image_to_patches(im,patch_w,patch_h):
+    h,w = patch_h,patch_w
     cols = int(np.ceil(float(im.shape[1])/float(w)))
     rows = int(np.ceil(float(im.shape[0])/float(h)))
     c = 1 if len(im.shape) == 2 else im.shape[-1]
     im = im.reshape((im.shape[0],im.shape[1],c))
-    ties = np.zeros((rows*h,cols*w,c),dtype=im.dtype)
-    ties[:im.shape[0],:im.shape[1],:] = im
-    ties = np.transpose(ties.reshape((rows,h,cols,w,c)),(0,2,1,3,4)).reshape(cols*rows,h,w,c)
+    patches = np.zeros((rows*h,cols*w,c),dtype=im.dtype)
+    patches[:im.shape[0],:im.shape[1],:] = im
+    patches = np.transpose(patches.reshape((rows,h,cols,w,c)),(0,2,1,3,4)).reshape(cols*rows,h,w,c)
     if(c==1):
-        return ties[...,0]
+        return patches[...,0]
     else:
-        return ties
+        return patches
     
 
 def iterate_folders(dataset):
@@ -112,9 +112,9 @@ def make_path(p):
         if not(os.path.exists(tmp)):
             os.mkdir(tmp)    
             
-def draw(ties,mask,cols=None,rows=None):
-    im = ties_to_image(ties,cols,rows)
-    mask = ties_to_image(mask,cols,rows)
+def draw(patches,mask,cols=None,rows=None):
+    im = patches_to_image(patches,cols,rows)
+    mask = patches_to_image(mask,cols,rows)
     mask = cv2.cvtColor(mask,cv2.COLOR_GRAY2RGB)
     im = cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
     plt.figure(figsize=(10,10))

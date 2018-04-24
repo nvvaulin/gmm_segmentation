@@ -1,23 +1,112 @@
 import os
 import cv2
 import numpy as np
-from dataset_tools import *
+from dataset_tools import iterate_folders,iterate_bathced,make_path,draw,image_to_patches,patches_to_image
 
-def list_all_img(dir):
-    res = []
-    for i in os.listdir(dir):
-        p = dir+'/'+i
-        if(os.path.isdir(p)):
-            res=res+list_all_img(p)
-        elif (p[-4:] in ['.png','.jpg','.bmp']):
-            res.append(p)
-    return res
+def images_to_patches(imgs,cols,rows,h,w):
+    '''
+    samples x rows*h x cols*w x c -> patches x samples x 
+    '''
+    assert len(imgs.shape) == 4
+    c = imgs.shape[-1]
+    return np.transpose(imgs.reshape((-1,rows,h,cols,w,c)),(1,3,0,2,4,5)).reshape(cols*rows,len(imgs),h,w,c)
+    
+def process_batch(imgs,masks,w,h,min_roi):
+    '''
+    return 
+    patches - n_samples x length x h x w x 3
+    patches_mask - n_samples x length x h x w
+    positions - n_samples x [x,y]
+    '''
+    cols = imgs.shape[2]//w
+    rows = imgs.shape[1]//h
+    imgs = imgs[:,:h*rows,:w*cols,:]
+    masks = masks[:,:h*rows,:w*cols]
+    imgs = images_to_patches(imgs,cols,rows,h,w)
+    masks = images_to_patches(masks.reshape(masks.shape+(1,)),cols,rows,h,w)[...,0]
+    positions = np.zeros((1,rows*h,cols*w,2),dtype=np.int32)
+    positions[0,:,:,0] += np.arange(cols*w)[None,:]
+    positions[0,:,:,1] += np.arange(rows*h)[:,None]
+    positions = images_to_patches(positions,cols,rows,h,w)
+    positions = positions[:,0,0,0,:]
+    roi = np.zeros_like(masks)
+    roi[(masks > 240) | (masks < 10)] = 1
+    roi = roi.mean((1,2,3))
+    imgs,masks,positions = imgs[roi>=min_roi],masks[roi>=min_roi],positions[roi>=min_roi]
+    return imgs,masks,positions
 
+def get_motion(patches,masks,positions,min_motion,names):
+    '''
+    return n_samples list of
+    patches - n_motion_patches x h x w x 3
+    patches_mask - n_motion_patches x h x w
+    positions - n_motion_patches x [x,y] positions of patches
+    index - n_motion_patches index of patches
+    '''
+    motion_mask = np.zeros_like(masks)
+    motion_mask[(masks > 240)] = 1
+    motion_mask = motion_mask.mean((2,3))
+    motion = []
+    names = np.array(names)
+    for i in range(len(masks)):
+        m = motion_mask[i] >= min_motion
+        p = (positions[i][0],positions[i][1])
+        motion.append((p,patches[i][m],masks[i][m],names[m]))
+    return motion
+
+def generate_patches(dataset,imdb,length,patch_size,min_motion,min_roi):
+    def save_motion_hist(key,hist):
+        key = imdb+key
+        make_path(key[:key.rfind('/')])
+        cv2.imwrite(key+'hist.png',hist)
+    def save(key,img,mask):
+        key = imdb+key
+        make_path(key[:key.rfind('/')])
+        img = patches_to_image(img)
+        cv2.imwrite(key+'.jpg',img)
+        if not(mask is None):
+            mask = patches_to_image(mask)
+            cv2.imwrite(key+'.png',mask)
+            
+    for path in iterate_folders(dataset):
+        print 'processing',path
+        all_motion = dict()
+        in_dir = path[len(dataset):]
+        for batch_num,(names,imgs,masks) in enumerate(iterate_bathced(path,length)):
+            patches, masks,positions = process_batch(imgs,masks,patch_size,patch_size,min_roi)
+            if(len(patches) == 0):
+                continue
+            for t,m,p in zip(patches,masks,positions):                    
+                key = '%s/%d_%d/%s_%s'%(in_dir,p[0],p[1],names[0],names[-1])
+                save(key,t, None if m[m>30].size == 0 else m)
+                
+            motion = get_motion(patches,masks,positions,min_motion,names)
+            for position,m_patch,m_mask,m_names in motion:
+                if not(position in all_motion):
+                    all_motion[position] = ([],[],[])
+                all_motion[position][0].append(m_patch)
+                all_motion[position][1].append(m_mask)
+                all_motion[position][2].append(m_names)
+            
+        for position,(patches,mask,names) in all_motion.iteritems():
+            patches = np.concatenate(tuple(patches))
+            mask = np.concatenate(tuple(mask))
+            names  = np.concatenate(tuple(names))
+            key = '%s/%d_%d/'%(in_dir,position[0],position[1])
+            if(len(patches) > 0):
+                motion_info = open(imdb+key+'motion_info.txt','w')
+                for n in names:
+                    motion_info.write(n+'\n')
+                motion_info.close()
+                save(key+'motion',patches,mask)
+                motion_hist = np.zeros_like(mask,dtype=np.int32)
+                motion_hist[mask > 240] = 1
+                motion_hist = np.clip(motion_hist.sum(0),0,255).astype(np.uint8)
+                save_motion_hist(key,motion_hist)
+                
 
 class IMDB:
-    def __init__(self,all_paths):
-        all_img = []
-        self.paths = all_paths
+    def __init__(self):
         self.data = dict()
         
     def __len__(self):
@@ -34,128 +123,13 @@ class IMDB:
     
     def keys(self):
         return self.paths
-            
-    
-def clip_random(imgs,masks=None,s=None):
-    y = int(np.random.randint(imgs.shape[1]-s+1))
-    x = int(np.random.randint(imgs.shape[2]-s+1))
-    if(masks is None):
-        return imgs[:,y:y+s,y:y+s]
-    else:
-        return imgs[:,y:y+s,y:y+s],masks[:,y:y+s,y:y+s]
-    
-class TieLoader:
-    def __init__(self,path,min_r,max_r,t_size=48,sample_size = 32,mask_size = 32,cache_samples=False):
-        self.t_size = t_size
-        self.min_r = min_r
-        self.max_r = max_r
-        self.sample_size = sample_size
-        self.mask_size = mask_size
-        if(os.path.exists(path+'/list.txt') and os.path.exists(path+'/motion.txt')):
-            self.img_list = [i[:-1] for i in open(path+'/list.txt')]
-            self.motion_list = [i[:-1] for i in open(path+'/motion.txt')]
-        else:
-            self.img_list = []
-            self.motion_list = []
-            for d in iterate_folders(path):
-                self.img_list=self.img_list+[d+'/'+i[:i.rfind('_')] for i in os.listdir(d) if i[-len('input.jpg'):] == 'input.jpg']
-                self.motion_list = self.motion_list+[d+'/'+i for i in os.listdir(d) if i[-len('motion.jpg'):] == 'motion.jpg']
-            f = open(path+'/list.txt','w')
-            for i in self.img_list:
-                f.write(i+'\n')
-            f.close()
-            f = open(path+'/motion.txt','w')
-            for i in self.motion_list:
-                f.write(i+'\n')
-            f.close()
-        self.motion = IMDB(self.motion_list)
-        if(cache_samples):
-            self.samples = IMDB([i+'_input.jpg' for i in self.img_list]+[i+'_mask.png' for i in self.img_list])
-        else:
-            self.samples = None
-            
-    def load_motion(self,sample_path):
-        p = sample_path[:sample_path.rfind('/')]
-        m_paths = [i for i in self.motion_list if i[:min(len(i),len(p))] == p]
-        if(len(m_paths) == 0):
-            return None
-        data = image_to_ties(self.motion[m_paths[np.random.randint(len(m_paths))]],self.t_size,self.t_size)
-        data = data[data.sum((1,2,3)) > 10 ]
-        return clip_random(data,s=self.sample_size)
-            
-    
-    def balance_tie(self,path,ties,mask):
-        means = (mask.astype(np.float32)/255.).mean((1,2))
-        inx = means.argsort()
-        if(means[inx[0]] < 0.1):
-            if(means.mean() < self.min_r):
-                data = self.load_motion(path)
-                if(data is None):
-                    return None,None
-                ii = np.random.randint(len(data))
-                for i in range(len(inx)//2):
-                    ties[inx[i]] = data[ii][:,:self.t_size,:self.t_size]
-                    ii = ii+1
-                    if(ii >= len(data)):
-                        data = np.concatenate((data,self.load_motion(path)))
-                    mask[inx[i]] = 255
-                    if((means[inx[i:]].sum()+i+1)/len(means) > self.min_r):
-                        return ties,mask
-            elif(means.mean() > self.max_r):
-                for i in range(1,len(inx)//2):
-                    ties[inx[-i]] = ties[inx[0]]
-                    mask[inx[-i]] = mask[inx[0]]
-                    if((means[inx[:-i]].sum()+means[inx[0]]*i)/len(means) < self.max_r):
-                        return ties,mask
-            else:
-                return ties,mask
-        return None,None
-        
-  
-    
-    def load_sample(self,path):
-        if not (self.samples is None):
-            tie = image_to_ties(self.samples[path+'_input.jpg'],self.t_size,self.t_size)
-            mask = image_to_ties(self.samples[path+'_mask.png'],self.t_size,self.t_size)
-        else:
-            tie = image_to_ties(cv2.imread(path+'_input.jpg'),self.t_size,self.t_size)
-            mask = image_to_ties(cv2.imread(path+'_mask.png',0),self.t_size,self.t_size)
-        tie,mask = clip_random(tie,mask,self.sample_size)
-        mask = clip_ties(mask,self.mask_size)
-        tie,mask = self.balance_tie(path,tie,mask)
-        return tie,mask
-
-    
-    def iterate(self,shuffle=False):
-        img_list = [i for i in self.img_list]
-        if(shuffle):
-            np.random.shuffle(img_list)
-        for path in img_list:
-            ties,mask = self.load_sample(path)
-            if(ties is None):
-                continue
-            yield ties,mask
-            
-        
-
-def data_generator(gmm_loader,
-                   epoch_size,
-                   shuffle=False):
-    for i,(ties,mask) in enumerate(gmm_loader.iterate(shuffle)): 
-        if(i >= epoch_size):
-            break
-        ties = np.transpose(ties,(0,3,1,2)).astype(np.float32)
-        mask = mask.astype(np.float32)/255.
-        mask[mask <= 0.1] = 0
-        mask[mask >= 0.9] = 1.
-        mask[(mask < 0.9)&(mask > 0.1)] = 0.5
-        yield ties,mask
-
 
 class PatchLoader(object):
-    def __init__(self, root, t_size, seq_l, min_m, max_m, out_size):
+    def __init__(self, root, t_size, seq_l, min_m, max_m, out_size,cashe_samples=False):
         assert (out_size // 2) * 2 + 1 == out_size, 'out_size must be odd'
         self.root, self.seq_l, self.out_size = root, seq_l, out_size
+        self.cashe_samples = cashe_samples
+        self.cashed_data = IMDB()
         self.min_m, self.max_m = np.ceil(min_m * float(seq_l)), np.floor(max_m * float(seq_l))
         self.t_size = t_size
         self.patches = []
@@ -178,11 +152,18 @@ class PatchLoader(object):
                 self.patches.append([i for i in all_jpg if i.find('motion') < 0])
                 self.motion_names.append(np.array([i[:-1] for i in open(prefix + 'motion_info.txt')]))
 
-    def load(self, path):
-        patches = cv2.imread(path + '.jpg')
-        patches = image_to_ties(patches, self.t_size, self.t_size)
+    def load(self, path,cashe=False):
+        if(cashe):
+            patches = self.cashed_data[path + '.jpg']
+        else:
+            patches = cv2.imread(path + '.jpg')
+        patches = image_to_patches(patches, self.t_size, self.t_size)
         if (os.path.exists(path + '.png')):
-            mask = image_to_ties(cv2.imread(path + '.png', 0), self.t_size, self.t_size)
+            if(cashe):
+                mask = self.cashed_data[path + '.png']
+            else:
+                mask = cv2.imread(path + '.png', 0)
+            mask = image_to_patches(mask,self.t_size, self.t_size)
         else:
             mask = np.zeros_like(patches[:, :, :, 0])
         return patches, mask
@@ -191,17 +172,17 @@ class PatchLoader(object):
         path = self.patches[patch_inx][inx]
         names = [int(i) for i in path[path.rfind('/') + 1:].split('_')]
         names = np.array(['%06d' % i for i in range(names[0], names[1] + 1)])
-        patches, mask = self.load(path)
+        patches, mask = self.load(path,self.cashe_samples)
         return patches, mask, names
 
     def load_motion(self, patch_inx):
-        patches, mask = self.load(self.motions[patch_inx])
+        patches, mask = self.load(self.motions[patch_inx],True)
         names = self.motion_names[patch_inx]
         patches = patches[:len(names)]
         mask = mask[:len(names)]
         return patches, mask, names
 
-    def balance_tie(self, patch_inx, patches, mask, x, y, names):
+    def balance_patch(self, patch_inx, patches, mask, x, y, names):
         means = np.zeros(len(mask))
         means[mask[:, y, x] > 240] = 1
         if (means.sum() > self.max_m):
@@ -240,7 +221,7 @@ class PatchLoader(object):
         y, x = np.unravel_index(int(np.random.choice(np.arange(hist.size), p=p / p.sum())), hist.shape)
         patches, mask, names = self.load_patch(patch_inx, inx)
         patches, mask, names = patches[:self.seq_l], mask[:self.seq_l], names[:self.seq_l]
-        patches, mask, names = self.balance_tie(patch_inx, patches, mask, x + self.out_size // 2,
+        patches, mask, names = self.balance_patch(patch_inx, patches, mask, x + self.out_size // 2,
                                                 y + self.out_size // 2, names)
         if(patches is None):
             return None,None,None,None
@@ -248,54 +229,27 @@ class PatchLoader(object):
         return patches[:, y:y + self.out_size, x:x + self.out_size], mask[:, y:y + self.out_size,
                                                                      x:x + self.out_size], names, pos
 
-    def get_position(self, patch_inx):
-        path = self.motions[patch_inx]
+    def iterate(self,shuffle=False):
+        img_list = np.arange(len(self.patches)).astype(bp.int32)
+        if(shuffle):
+            np.random.shuffle(img_list)
+        for patch_inx in img_list:
+            inx = int(np.random.randint(len(self.patches[patch_inx])))
+            patches,mask = self.load_sample(patch_inx,inx)
+            if(patches is None):
+                continue
+            yield patches,mask
 
-
-def test_patch_loader(original_data, dir, patch_size, max_seq_l):
-    o_size = int(np.random.randint(1, (patch_size - 1) // 2)) * 2 + 1
-    seq_l = int(np.random.randint(5, np.sqrt(max_seq_l))) ** 2
-    max_m = np.random.randint(1,seq_l)
-    min_m = np.random.randint(0,max_m)
-    min_m,max_m = min_m / float(seq_l), max_m / float(seq_l)
-    pl = PatchLoader(dir, patch_size, seq_l,min_m,max_m , o_size)
-    p_inx = np.random.randint(len(pl.patches))
-    inx = np.random.randint(len(pl.patches[p_inx]))
-    path = pl.patches[p_inx][inx]
-    for i in range(10):
-        im, mask, names, pos = pl.load_sample(p_inx, inx)
-        if not (im is None):
+def data_generator(gmm_loader,
+                   epoch_size,
+                   shuffle=False):
+    for i,(patches,mask) in enumerate(gmm_loader.iterate(shuffle)): 
+        if(i >= epoch_size):
             break
-
-    o_imgs = []
-    o_mask = []
-    path = original_data+'/'.join(path[len(dir)+1:].split('/')[:2])
-    for i in names:
-        o_imgs.append(cv2.imread(path+'/input/in%s.jpg'%(i))[pos[1]:pos[1]+o_size,pos[0]:pos[0]+o_size])
-        o_mask.append(cv2.imread(path+'/groundtruth/gt%s.png'%(i),0)[pos[1]:pos[1]+o_size,pos[0]:pos[0]+o_size])
-    o_mask =np.array(o_mask)
-    o_imgs = np.array(o_imgs)
-    draw(o_imgs,o_mask)
-    draw(im,mask)
-    print np.array(o_mask.astype(np.float32)-mask.astype(np.float32)).sum()
-    print np.array(o_imgs[:20].astype(np.float32)-im[:20].astype(np.float32)).sum()
-    try:
-        if (im is None):
-            raise ValueError('always None')
-        if (im.shape != (seq_l, o_size, o_size, 3) or mask.shape != (seq_l, o_size, o_size)):
-            print 'im_shape', im.shape, ',mask_shape', mask.shape
-            raise ValueError('wrong shape')
-        if not (min_m <= (mask[:, o_size // 2, o_size // 2] > 240).mean() <= max_m):
-            print 'balanse', (mask[:, o_size // 2, o_size // 2] > 240).mean(), np.ceil(min_m * seq_l)
-            raise ValueError('wrong balanse')
-    except Exception as e:
-        print 'max_m=%f,min_m=%f,seq_l=%d,o_size=%d,p_inx=%d,inx=%d,path=%s' % (
-        max_m, min_m, seq_l, o_size, p_inx, inx, path)
-        if not (im is None):
-            draw(im, mask)
-        raise e
-
-np.random.seed(0)
-for i in range(100):
-    print i
-    test_patch_loader('data/test/', 'out', 32, 256)
+        patches = np.transpose(patches,(0,3,1,2)).astype(np.float32)
+        mask = mask.astype(np.float32)/255.
+        mask[mask <= 0.1] = 0
+        mask[mask >= 0.9] = 1.
+        mask[(mask < 0.9)&(mask > 0.1)] = 0.5
+        yield patches,mask
+        
