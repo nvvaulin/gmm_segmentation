@@ -32,7 +32,7 @@ class IMDB:
         else:
             return cv2.imdecode(arr, cv2.CV_LOAD_IMAGE_UNCHANGED)
     
-    def keys():
+    def keys(self):
         return self.paths
             
     
@@ -150,4 +150,152 @@ def data_generator(gmm_loader,
         mask[mask >= 0.9] = 1.
         mask[(mask < 0.9)&(mask > 0.1)] = 0.5
         yield ties,mask
-        
+
+
+class PatchLoader(object):
+    def __init__(self, root, t_size, seq_l, min_m, max_m, out_size):
+        assert (out_size // 2) * 2 + 1 == out_size, 'out_size must be odd'
+        self.root, self.seq_l, self.out_size = root, seq_l, out_size
+        self.min_m, self.max_m = np.ceil(min_m * float(seq_l)), np.floor(max_m * float(seq_l))
+        self.t_size = t_size
+        self.patches = []
+        self.motions = []
+        self.hist = []
+        self.motion_names = []
+        pad = self.out_size // 2
+        for video in iterate_folders(root):
+            for p in os.listdir(video):
+                prefix = video + '/' + p + '/'
+                hist = cv2.imread(prefix + 'hist.png', 0)
+                if (hist is None):
+                    continue
+                hist = hist[pad:hist.shape[0] - pad, pad:hist.shape[1] - pad]
+                if (hist.max() < self.min_m):
+                    continue
+                self.hist.append(hist)
+                all_jpg = [prefix + i[:i.rfind('.')] for i in os.listdir(prefix) if i.find('jpg') > 0]
+                self.motions.append([i for i in all_jpg if i.find('motion') > 0][0])
+                self.patches.append([i for i in all_jpg if i.find('motion') < 0])
+                self.motion_names.append(np.array([i[:-1] for i in open(prefix + 'motion_info.txt')]))
+
+    def load(self, path):
+        patches = cv2.imread(path + '.jpg')
+        patches = image_to_ties(patches, self.t_size, self.t_size)
+        if (os.path.exists(path + '.png')):
+            mask = image_to_ties(cv2.imread(path + '.png', 0), self.t_size, self.t_size)
+        else:
+            mask = np.zeros_like(patches[:, :, :, 0])
+        return patches, mask
+
+    def load_patch(self, patch_inx, inx):
+        path = self.patches[patch_inx][inx]
+        names = [int(i) for i in path[path.rfind('/') + 1:].split('_')]
+        names = np.array(['%06d' % i for i in range(names[0], names[1] + 1)])
+        patches, mask = self.load(path)
+        return patches, mask, names
+
+    def load_motion(self, patch_inx):
+        patches, mask = self.load(self.motions[patch_inx])
+        names = self.motion_names[patch_inx]
+        patches = patches[:len(names)]
+        mask = mask[:len(names)]
+        return patches, mask, names
+
+    def balance_tie(self, patch_inx, patches, mask, x, y, names):
+        means = np.zeros(len(mask))
+        means[mask[:, y, x] > 240] = 1
+        if (means.sum() > self.max_m):
+            bg_patch = patches[means < 0.5]
+            bg_mask = mask[means  < 0.5]
+            bg_names = names[means < 0.5]
+            if(len(bg_mask) == 0):
+                return None, None, None
+            samples_to_add = int(means.sum()-self.max_m)
+            inx = np.random.choice(np.arange(0, len(bg_mask)).astype(np.int32), samples_to_add)
+            patches = np.concatenate((patches[means < 0.5], bg_patch[inx],patches[means >= 0.5][samples_to_add:]),
+                                     axis=0)
+            mask = np.concatenate((mask[means < 0.5], bg_mask[inx],mask[means >= 0.5][samples_to_add:]), axis=0)
+            names = np.concatenate(( names[means < 0.5], bg_names[inx],names[means >= 0.5][samples_to_add:]), axis=0)
+            return patches, mask, names
+        elif (means.sum() < self.min_m):
+            m_patch, m_mask, m_names = self.load_motion(patch_inx)
+            m_patch = m_patch[m_mask[:, y, x] > 240]
+            m_names = m_names[m_mask[:, y, x] > 240]
+            m_mask = m_mask[m_mask[:, y, x] > 240]
+            samples_to_add = int(self.min_m - means.sum())
+            inx = np.random.choice(np.arange(0, len(m_mask)).astype(np.int32), samples_to_add)
+            patches = np.concatenate((patches[means < 0.5][samples_to_add:], patches[means >= 0.5], m_patch[inx]),
+                                     axis=0)
+            mask = np.concatenate((mask[means < 0.5][samples_to_add:], mask[means >= 0.5], m_mask[inx]), axis=0)
+            names = np.concatenate((names[means < 0.5][samples_to_add:], names[means >= 0.5], m_names[inx]), axis=0)
+            return patches, mask, names
+        else:
+            return patches, mask, names
+
+    def load_sample(self, patch_inx, inx=None):
+        pos = tuple([int(i) for i in self.patches[patch_inx][inx].split('/')[-2].split('_')])
+        hist = self.hist[patch_inx].copy()
+        p = np.zeros_like(hist, dtype=np.float32).flatten()
+        p[hist.flatten() >= self.min_m] = 1.
+        y, x = np.unravel_index(int(np.random.choice(np.arange(hist.size), p=p / p.sum())), hist.shape)
+        patches, mask, names = self.load_patch(patch_inx, inx)
+        patches, mask, names = patches[:self.seq_l], mask[:self.seq_l], names[:self.seq_l]
+        patches, mask, names = self.balance_tie(patch_inx, patches, mask, x + self.out_size // 2,
+                                                y + self.out_size // 2, names)
+        if(patches is None):
+            return None,None,None,None
+        pos = (pos[0] + x, pos[1] + y)
+        return patches[:, y:y + self.out_size, x:x + self.out_size], mask[:, y:y + self.out_size,
+                                                                     x:x + self.out_size], names, pos
+
+    def get_position(self, patch_inx):
+        path = self.motions[patch_inx]
+
+
+def test_patch_loader(original_data, dir, patch_size, max_seq_l):
+    o_size = int(np.random.randint(1, (patch_size - 1) // 2)) * 2 + 1
+    seq_l = int(np.random.randint(5, np.sqrt(max_seq_l))) ** 2
+    max_m = np.random.randint(1,seq_l)
+    min_m = np.random.randint(0,max_m)
+    min_m,max_m = min_m / float(seq_l), max_m / float(seq_l)
+    pl = PatchLoader(dir, patch_size, seq_l,min_m,max_m , o_size)
+    p_inx = np.random.randint(len(pl.patches))
+    inx = np.random.randint(len(pl.patches[p_inx]))
+    path = pl.patches[p_inx][inx]
+    for i in range(10):
+        im, mask, names, pos = pl.load_sample(p_inx, inx)
+        if not (im is None):
+            break
+
+    o_imgs = []
+    o_mask = []
+    path = original_data+'/'.join(path[len(dir)+1:].split('/')[:2])
+    for i in names:
+        o_imgs.append(cv2.imread(path+'/input/in%s.jpg'%(i))[pos[1]:pos[1]+o_size,pos[0]:pos[0]+o_size])
+        o_mask.append(cv2.imread(path+'/groundtruth/gt%s.png'%(i),0)[pos[1]:pos[1]+o_size,pos[0]:pos[0]+o_size])
+    o_mask =np.array(o_mask)
+    o_imgs = np.array(o_imgs)
+    draw(o_imgs,o_mask)
+    draw(im,mask)
+    print np.array(o_mask.astype(np.float32)-mask.astype(np.float32)).sum()
+    print np.array(o_imgs[:20].astype(np.float32)-im[:20].astype(np.float32)).sum()
+    try:
+        if (im is None):
+            raise ValueError('always None')
+        if (im.shape != (seq_l, o_size, o_size, 3) or mask.shape != (seq_l, o_size, o_size)):
+            print 'im_shape', im.shape, ',mask_shape', mask.shape
+            raise ValueError('wrong shape')
+        if not (min_m <= (mask[:, o_size // 2, o_size // 2] > 240).mean() <= max_m):
+            print 'balanse', (mask[:, o_size // 2, o_size // 2] > 240).mean(), np.ceil(min_m * seq_l)
+            raise ValueError('wrong balanse')
+    except Exception as e:
+        print 'max_m=%f,min_m=%f,seq_l=%d,o_size=%d,p_inx=%d,inx=%d,path=%s' % (
+        max_m, min_m, seq_l, o_size, p_inx, inx, path)
+        if not (im is None):
+            draw(im, mask)
+        raise e
+
+np.random.seed(0)
+for i in range(100):
+    print i
+    test_patch_loader('data/test/', 'out', 32, 256)
