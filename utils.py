@@ -182,8 +182,7 @@ class TrivialInit(lasagne.init.Initializer):
                 for i in range(shape[0]):
                     W[i,i+shape[0]*k,1,1] += 1./f
         return theano.shared(W)
-
-  
+    
 class Logger(object):
     def __init__(self,*args):
         self.outputs = []

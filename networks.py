@@ -1,11 +1,10 @@
 import numpy as np
 import cv2
-from loader import TieLoader,data_generator
 import lasagne
 from lasagne import layers as L
 from lasagne.nonlinearities import rectify,tanh
 from utils import NormedDense,L2NormLayer
-from utils import get_network_str,save_weights,load_weights,tee
+from utils import get_network_str,save_weights,load_weights,Logger
 
 
 def conv(data,num_filters,name,pad):
@@ -67,22 +66,22 @@ def UNet(data,ndim,pad='same'):
     res = L2NormLayer(res,1e-8,name='l2norm')
     return res       
 
-def make_FCN(FCN_name,data,ndim,model_name='',input_shape = (None,3,None,None),pad='same',logger=None):
+def make_FCN(FCN_name,data,ndim,model_name='',input_shape = (None,3,None,None),pad='same',logger=Logger('std')):
     if (isinstance(FCN_name,str)):
-        tee('load finction '+FCN_name,logger)
+        logger.log('load finction '+FCN_name)
         try:
             FCN = globals()[FCN_name] 
         except:
             raise NotImplementedError("No such function "+FCN_name)
     else:        
-        tee('load finction '+FCN_name.__name__,logger)
+        logger.log('load finction '+FCN_name.__name__)
         FCN=FCN_name
     datal = res = L.InputLayer(input_shape,
                                data/256.-0.5,
                                name='data')
     res = FCN(datal,ndim=ndim,pad=pad)
     if(model_name!=''):
-        tee('load model '+model_name,logger)
+        logger.log('load model '+model_name)
         load_weights(res,model_name)
-    tee(get_network_str(res,incomings=True,outgoings=True),logger)
+    logger.log(get_network_str(res,incomings=True,outgoings=True))
     return res

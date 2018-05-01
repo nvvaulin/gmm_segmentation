@@ -230,12 +230,12 @@ class PatchLoader(object):
                                                                      x:x + self.out_size], names, pos
 
     def iterate(self,shuffle=False):
-        img_list = np.arange(len(self.patches)).astype(bp.int32)
+        img_list = np.arange(len(self.patches)).astype(np.int32)
         if(shuffle):
             np.random.shuffle(img_list)
         for patch_inx in img_list:
             inx = int(np.random.randint(len(self.patches[patch_inx])))
-            patches,mask = self.load_sample(patch_inx,inx)
+            patches,mask,names,pos = self.load_sample(patch_inx,inx)
             if(patches is None):
                 continue
             yield patches,mask
