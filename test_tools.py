@@ -35,12 +35,6 @@ def map_fit_gmm(args):
         except:
             print args[1].shape
             print args[1]
-            plt.hist(args[1][:,0])
-            plt.show()
-            plt.hist(args[1][:,1])
-            plt.show()
-            plt.hist(args[1][:,2])
-            plt.show()
             raise
     
 class GMMAlgorithm(BGAlgorithm):
