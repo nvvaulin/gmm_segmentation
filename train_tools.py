@@ -9,7 +9,6 @@ from gmm_op import get_gmm,calc_log_prob_gmm
 from theano_utils import split,histogram_loss,split_tr_p_n
 from lasagne import layers as L
 import lasagne
-from utils import tee
 import os
 
 def make_simple_gmm_classifier(X,label,non_learn_params):
