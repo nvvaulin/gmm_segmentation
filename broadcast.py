@@ -1,4 +1,4 @@
-from agentnet.utils.format import check_list
+#from agentnet.utils.format import check_list
 from lasagne.layers import Layer
 import numpy as np
 
@@ -20,7 +20,7 @@ class BroadcastLayer(Layer):
 
         # axes that are to be broadcasted -- in ascending order
         # ax%self.incoming_ndim is used to replace negative axes with N-ax+1 so that -1 becomes last axis
-        self.broadcasted_axes = sorted([ax % self.incoming_ndim for ax in check_list(broadcasted_axes)])
+        self.broadcasted_axes = sorted([ax % self.incoming_ndim for ax in broadcasted_axes])
 
         # sanity checks
         assert max(self.broadcasted_axes) < self.incoming_ndim
